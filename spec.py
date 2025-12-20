@@ -503,7 +503,7 @@ class SageoClient:
         """
         pass
 
-    def ensure_registered(self) -> bool:
+    def _ensure_registered(self) -> bool:
         """
         Ensures this agent is registered on Sageo and if not, directs user to agent registration flow. Called by __init__(). 
 
