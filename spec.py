@@ -585,9 +585,9 @@ class SageoClient:
         """
         pass
 
-    def ensure_registered(self) -> AgentProfile:
+    def _ensure_registered(self) -> bool:
         """
-        Ensures this agent is registered on Sageo, registering if necessary.
+        Ensures this agent is registered on Sageo and if not, directs user to agent registration flow. Called by __init__(). 
 
         Output:
             This agent's profile (existing or newly created)
@@ -615,9 +615,9 @@ class SageoClient:
         """
         pass
 
-    def wrap_a2a_client(self, a2a_client: object) -> "SageoA2AClientWrapper":
+    def wrap_a2a_client(self, a2a_client: object) -> SageoA2AClientWrapper:
         """
-        Wraps an existing A2A client to automatically log interactions.
+        Wraps an existing A2A client to automatically log interactions. 
 
         Input:
             a2a_client - An instance of a2a.client.A2AClient
@@ -650,7 +650,7 @@ class SageoA2AClientWrapper:
     All A2AClient methods are proxied with Sageo logging added.
     """
 
-    def __init__(self, sageo_client: SageoClient, a2a_client: object, remote_agent_card: AgentCard):
+    def __init__(self, a2a_client: object, remote_agent_card: AgentCard):
         """
         Creates a wrapped A2A client.
 
@@ -661,7 +661,7 @@ class SageoA2AClientWrapper:
         """
         pass
 
-    async def send_message(self, request: SendMessageRequest) -> SendMessageResponse:
+    async def send_message(self, request: SendMessageRequest) -> Task | Message:
         """
         Sends a message to the remote agent with automatic Sageo logging.
 
