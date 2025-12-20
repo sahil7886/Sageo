@@ -354,7 +354,7 @@ class SageoClient:
     This is the primary interface developers use to integrate Sageo.
     """
 
-    def __init__(self, moi_rpc_url: str, moi_api_key: str, agent_key: str, agent_card: AgentCard):
+    def __init__(self, moi_rpc_url: str, moi_api_key: str, agent_key: str, sageo_id: str):
         """
         Initializes the Sageo client, ensures agent is registered and creates/loads an AgentProfile.
 
@@ -362,7 +362,7 @@ class SageoClient:
             moi_rpc_url - URL of the MOI RPC endpoint needed to connect to the blockchain
             moi_api_key - API key to access the RPC endpoints [https://voyage-docs.moi.technology/docs/getting-started/#2-creating-an-api-key]
             agent_key - Private key for signing interactions
-            agent_card - This agent's A2A AgentCard
+            sageo_id - Function assumes agent is registered. Expects Sageo ID of agent.
         """
         pass
 
