@@ -14,12 +14,19 @@ class AgentProvider:
     organization: str
     url: str
 
+
 @dataclass
 class AgentInterface:
     """Declares which protocol bindings the agent supports (A2A spec)."""
     transport: str      # Protocol binding identifier (e.g., "JSONRPC", "GRPC")
     url: str            # Service endpoint URL
 
+
+@dataclass
+class AgentCardSignature:
+    signer: str            # DID / address
+    signature: str         # cryptographic signature
+    algorithm: Optional[str] = None
 
 @dataclass
 class AgentExtension:
@@ -61,21 +68,28 @@ class AgentCard:
     name: str                                   # Human-readable agent name
     description: str                            # Agent purpose and capabilities summary
     version: str                                # Agent version
-    url: str                                    # Primary endpoint URL
-    capabilities: AgentCapabilities             # Supported features and operations
-    skills: List[AgentSkill]                    # Available agent skills
     default_input_modes: List[str]              # Default accepted input formats
     default_output_modes: List[str]             # Default output formats
+    capabilities: AgentCapabilities             # Supported features and operations
+    skills: List[AgentSkill]                    # Available agent skills
+    
+    url: str                                    # Primary endpoint URL
 
     # Optional fields
-    additional_interfaces: Optional[List[AgentInterface]] = None
-    documentation_url: Optional[str] = None
+
+    # Optional descriptive metadata
     icon_url: Optional[str] = None
+    documentation_url: Optional[str] = None
+    provider: Optional[AgentProvider] = None
+
+    # A2A spec fields stored as opaque metadata
     preferred_transport: Optional[str] = "JSONRPC"
     protocol_version: Optional[str] = "1.0"
-    provider: Optional[AgentProvider] = None
+    additional_interfaces: Optional[List[AgentInterface]] = None
+    security_schemes: Optional[Dict[str, SecurityScheme]] = None
     security: Optional[List[Dict[str, List[str]]]] = None
     supports_authenticated_extended_card: Optional[bool] = None
+    signatures: Optional[List[AgentCardSignature]] = None
 
 @dataclass
 class AgentProfile:
@@ -83,12 +97,14 @@ class AgentProfile:
     Sageo on-chain agent profile - extends A2A AgentCard with blockchain identity.
     Stores the full AgentCard data plus Sageo-specific fields for trust/discovery.
     """
+    # Sageo identity fields
     sageo_id: str                               # Sageo-assigned unique identifier (on-chain)
     owner: str                                  # MOI participant ID of the agent owner
     status: AgentStatus                         # Sageo operational status
     created_at: int                             # Unix timestamp of registration
     updated_at: int                             # Unix timestamp of last update
 
+    # A2A AgentCard (composed, not duplicated)
     agent_card: AgentCard                       # The agent's A2A AgentCard with all metadata
 
 
@@ -146,7 +162,35 @@ class SageoIdentityLogic:
         Output:
             The newly created agent profile with assigned sageo_id
         """
-        pass
+        
+        if actor_id in self._agent_id_by_actor:
+            raise ValueError("Actor already owns a registered agent")
+
+        if not agent_card.is_identity_complete():
+            raise ValueError("AgentCard missing required identity fields")
+
+        sageo_id = f"sageo_{uuid.uuid4().hex}"
+        now = int(time.time())
+
+        profile = AgentProfile(
+            sageo_id=sageo_id,
+            actor_id=actor_id,
+            agent_card=agent_card,
+            status=AgentStatus.ACTIVE,
+            created_at=now,
+            updated_at=now,
+        )
+
+        self._agents_by_id[sageo_id] = profile
+        self._agent_id_by_actor[actor_id] = sageo_id
+
+        # Optional index (if endpoint URL exists)
+        if agent_card.supported_interfaces:
+            for interface in agent_card.supported_interfaces:
+                self._agent_id_by_url[interface.url] = sageo_id
+
+        return profile
+
 
     def get_agent_by_id(self, sageo_id: str) -> Optional[AgentProfile]:
         """
@@ -158,7 +202,18 @@ class SageoIdentityLogic:
         Output:
             The agent profile if found, None otherwise
         """
-        pass
+        return self._agents_by_id.get(sageo_id)
+    
+    def get_agent_by_actor_id(self, actor_id: str) -> Optional[AgentProfile]:
+        """
+        Ownership lookup (used by SDK during init).
+        """
+        sageo_id = self._agent_id_by_actor.get(actor_id)
+        if not sageo_id:
+            return None
+        return self._agents_by_id.get(sageo_id)
+
+
 
     def get_agent_by_url(self, url: str) -> Optional[AgentProfile]:
         """
@@ -170,7 +225,10 @@ class SageoIdentityLogic:
         Output:
             The agent profile if found, None otherwise
         """
-        pass
+        sageo_id = self._agent_id_by_url.get(url)
+        if not sageo_id:
+            return None
+        return self._agents_by_id.get(sageo_id)
 
     def update_agent_card(self, sageo_id: str, agent_card: AgentCard) -> AgentProfile:
         """
@@ -183,9 +241,13 @@ class SageoIdentityLogic:
         Output:
             The updated agent profile
         """
-        pass
+        sageo_id = self._agent_id_by_url.get(url)
+        if not sageo_id:
+            return None
+        return self._agents_by_id.get(sageo_id)
 
-    def set_agent_status(self, sageo_id: str, status: AgentStatus) -> AgentProfile:
+    def set_agent_status(self, sageo_id: str, status: AgentStatus, caller_actor_id: str,
+        is_admin: bool = False) -> AgentProfile:
         """
         Updates an agent's operational status (owner-only for PAUSED, admin for COMPROMISED).
 
@@ -196,7 +258,21 @@ class SageoIdentityLogic:
         Output:
             The updated agent profile
         """
-        pass
+
+        profile = self._require_agent(sageo_id)
+
+        if status == AgentStatus.PAUSED and profile.actor_id != caller_actor_id:
+            raise PermissionError("Only owner may pause agent")
+
+        if status == AgentStatus.COMPROMISED and not is_admin:
+            raise PermissionError("Only admin may mark agent as compromised")
+
+        profile.status = status
+        profile.updated_at = int(time.time())
+
+        return profile
+
+
 
     def list_agents(self, tags: Optional[List[str]] = None, status: Optional[AgentStatus] = None, capabilities: Optional[Dict[str, bool]] = None, limit: int = 50, offset: int = 0) -> List[AgentProfile]:
         """
@@ -212,7 +288,30 @@ class SageoIdentityLogic:
         Output:
             List of matching agent profiles
         """
-        pass
+        
+        results = list(self._agents_by_id.values())
+
+        if status:
+            results = [a for a in results if a.status == status]
+
+        if tags:
+            results = [
+                a for a in results
+                if all(
+                    tag in [s.name for s in a.agent_card.skills]
+                    for tag in tags
+                )
+            ]
+
+        if capabilities:
+            for key, value in capabilities.items():
+                results = [
+                    a for a in results
+                    if getattr(a.agent_card.capabilities, key, None) == value
+                ]
+
+        return results[offset: offset + min(limit, 100)]
+
 
     def search_agents(self, query: str, limit: int = 20) -> List[AgentProfile]:
         """
@@ -223,9 +322,33 @@ class SageoIdentityLogic:
             limit - Maximum results to return (default: 20)
 
         Output:
-            Ranked list of matching agents (their profiles)
+            Ranked list of matching agents
         """
-        pass
+
+
+        q = query.lower()
+
+        def score(agent: AgentProfile) -> int:
+            s = 0
+            card = agent.agent_card
+            if q in card.name.lower():
+                s += 3
+            if q in card.description.lower():
+                s += 2
+            for skill in card.skills:
+                if q in skill.name.lower():
+                    s += 1
+            return s
+
+        ranked = sorted(
+            self._agents_by_id.values(),
+            key=score,
+            reverse=True,
+        )
+
+        return [a for a in ranked if score(a) > 0][:limit]
+    
+
 
     def get_agents_by_skill(self, skill_id: str, limit: int = 50) -> List[AgentProfile]:
         """
@@ -238,7 +361,20 @@ class SageoIdentityLogic:
         Output:
             List of agents with the specified skill
         """
-        pass
+
+        results = [
+            a for a in self._agents_by_id.values()
+            if any(skill.name == skill_id for skill in a.agent_card.skills)
+        ]
+
+        return results[:limit]
+
+        # An internal helper method to ensure an agent exists
+        def _require_agent(self, sageo_id: str) -> AgentProfile:
+        agent = self._agents_by_id.get(sageo_id)
+        if not agent:
+            raise KeyError("Agent not found")
+        return agent
 
 
 class SageoInteractionLogic:
@@ -354,24 +490,23 @@ class SageoClient:
     This is the primary interface developers use to integrate Sageo.
     """
 
-    def __init__(self, moi_rpc_url: str, moi_api_key: str, agent_key: str, agent_card: AgentCard):
+    def __init__(self, moi_rpc_url: str, agent_key: str, agent_card: AgentCard):
         """
-        Initializes the Sageo client, ensures agent is registered and creates/loads an AgentProfile.
+        Initializes the Sageo client and ensures agent is registered.
 
         Input:
-            moi_rpc_url - URL of the MOI RPC endpoint needed to connect to the blockchain
-            moi_api_key - API key to access the RPC endpoints [https://voyage-docs.moi.technology/docs/getting-started/#2-creating-an-api-key]
+            moi_rpc_url - URL of the MOI RPC endpoint
             agent_key - Private key for signing interactions
             agent_card - This agent's A2A AgentCard
         """
         pass
 
-    def ensure_registered(self) -> bool:
+    def ensure_registered(self) -> AgentProfile:
         """
-        Ensures this agent is registered on Sageo and if not, directs user to agent registration flow.
+        Ensures this agent is registered on Sageo, registering if necessary.
 
         Output:
-            boolean True/False - registered or not.
+            This agent's profile (existing or newly created)
         """
         pass
 
@@ -485,13 +620,12 @@ class SageoExplorer:
     Read-only operations that don't require agent registration.
     """
 
-    def __init__(self, moi_rpc_url: str, moi_api_key: str):
+    def __init__(self, moi_rpc_url: str):
         """
         Initializes the explorer client.
 
         Input:
             moi_rpc_url - URL of the MOI RPC endpoint
-            api_key - MOI api key
         """
         pass
 
@@ -576,14 +710,13 @@ class SageoExplorer:
         """
         pass
 
-    def get_agent_interactions(self, agent_id: str, start_time: Optional[int] = None, end_time: Optional[int] = None, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
+    def get_agent_interactions(self, agent_id: str, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
         """
         Gets interactions for a specific agent.
 
         Input:
             agent_id - Sageo agent ID
-            start_time - Unix timestamp start filter
-            end_time - Unix timestamp end filter
+            direction - Filter by direction
             limit - Max results
             offset - Pagination offset
 
