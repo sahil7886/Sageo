@@ -386,7 +386,8 @@ class SageoInteractionLogic:
     Deployed as Coco logic on MOI blockchain.
     """
 
-    def log_request(self, caller_agent_id: str, callee_agent_id: str, request_hash: str, intent: str, signature: str) -> str:
+    def log_request(self, caller_agent_id: str, callee_agent_id: str, request_hash: str, 
+    intent: str, signature: str, conversation_id: Optional[str] = None) -> str:
         """
         Logs the initiation of an agent-to-agent request and returns an interaction ID.
 
@@ -400,7 +401,26 @@ class SageoInteractionLogic:
         Output:
             Unique interaction_id for linking the subsequent response
         """
-        pass
+
+        interaction_id = f"inter_{uuid.uuid4().hex}"
+        record = InteractionRecord(
+            interaction_id=interaction_id,
+            caller_agent_id=caller_agent_id,
+            callee_agent_id=callee_agent_id,
+            direction=InteractionDirection.REQUEST,
+            intent=intent,
+            request_hash=request_hash,
+            signature=signature,
+            conversation_id=conversation_id,
+            request_timestamp=int(time.time())
+        )
+        self._interactions[interaction_id] = record
+
+        for agent_id in [caller_agent_id, callee_agent_id]:
+            self._interactions_by_agent.setdefault(agent_id, []).append(interaction_id)
+
+        return interaction_id
+
 
     def log_response(self, interaction_id: str, response_hash: str, status_code: int, signature: str) -> InteractionRecord:
         """
@@ -415,7 +435,19 @@ class SageoInteractionLogic:
         Output:
             The completed interaction record
         """
-        pass
+
+        record = self._interactions.get(interaction_id)
+        if not record:
+            raise KeyError(f"Interaction {interaction_id} not found")
+
+        record.response_hash = response_hash
+        record.status_code = status_code
+        record.signature = signature
+        record.response_timestamp = int(time.time())
+        record.direction = InteractionDirection.RESPONSE
+
+        return record
+
 
     def get_interaction(self, interaction_id: str) -> Optional[InteractionRecord]:
         """
@@ -427,7 +459,7 @@ class SageoInteractionLogic:
         Output:
             The interaction record if found, None otherwise
         """
-        pass
+        return self._interactions.get(interaction_id)
 
     def list_interactions_by_agent(self, agent_id: str, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
         """
@@ -442,7 +474,9 @@ class SageoInteractionLogic:
         Output:
             List of interactions, newest first
         """
-        pass
+        ids = self._interactions_by_agent.get(agent_id, [])
+        records = [self._interactions[i] for i in reversed(ids)]
+        return records[offset:offset + min(limit, 100)]
 
     def list_interactions_between_agents(self, agent_a_id: str, agent_b_id: str, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
         """
@@ -457,7 +491,13 @@ class SageoInteractionLogic:
         Output:
             List of interactions between the two agents
         """
-        pass
+        records = []
+        for interaction_id in self._interactions_by_agent.get(agent_a_id, []):
+            r = self._interactions[interaction_id]
+            if {r.caller_agent_id, r.callee_agent_id} == {agent_a_id, agent_b_id}:
+                records.append(r)
+        records.sort(key=lambda r: r.request_timestamp, reverse=True)
+        return records[offset:offset + limit]
 
     def verify_interaction(self, interaction_id: str, request_payload: bytes, response_payload: Optional[bytes] = None) -> bool:
         """
@@ -471,7 +511,21 @@ class SageoInteractionLogic:
         Output:
             True if all provided payloads match their on-chain hashes
         """
-        pass
+
+        record = self._interactions.get(interaction_id)
+        if not record:
+            return False
+
+        computed_request_hash = hashlib.sha256(request_payload).hexdigest()
+        if computed_request_hash != record.request_hash:
+            return False
+
+        if response_payload and record.response_hash:
+            computed_response_hash = hashlib.sha256(response_payload).hexdigest()
+            if computed_response_hash != record.response_hash:
+                return False
+
+        return True
 
     def get_agent_interaction_stats(self, agent_id: str) -> dict:
         """
@@ -484,7 +538,31 @@ class SageoInteractionLogic:
             Statistics dict with keys: total_requests_sent, total_requests_received,
             total_responses_sent, success_rate, unique_counterparties, last_interaction_at
         """
-        pass
+        records = [self._interactions[i] for i in self._interactions_by_agent.get(agent_id, [])]
+
+        total_requests_sent = sum(1 for r in records if r.direction == InteractionDirection.REQUEST and r.caller_agent_id == agent_id)
+        total_requests_received = sum(1 for r in records if r.direction == InteractionDirection.REQUEST and r.callee_agent_id == agent_id)
+        total_responses_sent = sum(1 for r in records if r.direction == InteractionDirection.RESPONSE and r.callee_agent_id == agent_id)
+        success_responses = [r for r in records if r.direction == InteractionDirection.RESPONSE and r.status_code and 200 <= r.status_code < 300]
+        success_rate = len(success_responses) / total_requests_sent if total_requests_sent > 0 else None
+
+        counterparties = set()
+        for r in records:
+            if r.caller_agent_id == agent_id:
+                counterparties.add(r.callee_agent_id)
+            elif r.callee_agent_id == agent_id:
+                counterparties.add(r.caller_agent_id)
+
+        last_interaction = max((r.request_timestamp for r in records), default=None)
+
+        return {
+            "total_requests_sent": total_requests_sent,
+            "total_requests_received": total_requests_received,
+            "total_responses_sent": total_responses_sent,
+            "success_rate": success_rate,
+            "unique_counterparties": len(counterparties),
+            "last_interaction_at": last_interaction,
+        }
 
 class SageoClient:
     """
@@ -492,14 +570,18 @@ class SageoClient:
     This is the primary interface developers use to integrate Sageo.
     """
 
+<<<<<<< HEAD
     def __init__(self, moi_rpc_url: str, agent_key: str, agent_card: AgentCard):
+=======
+    def __init__(self, moi_rpc_url: str, moi_api_key: str, agent_key: str, sageo_id: str):
+>>>>>>> 67e997d268275150d2db6f992d9c8ed9d835bef1
         """
         Initializes the Sageo client and ensures agent is registered.
 
         Input:
             moi_rpc_url - URL of the MOI RPC endpoint
             agent_key - Private key for signing interactions
-            agent_card - This agent's A2A AgentCard
+            sageo_id - Function assumes agent is registered. Expects Sageo ID of agent.
         """
         pass
 
