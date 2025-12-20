@@ -14,7 +14,6 @@ class AgentProvider:
     organization: str
     url: str
 
-
 @dataclass
 class AgentInterface:
     """Declares which protocol bindings the agent supports (A2A spec)."""
@@ -84,14 +83,12 @@ class AgentProfile:
     Sageo on-chain agent profile - extends A2A AgentCard with blockchain identity.
     Stores the full AgentCard data plus Sageo-specific fields for trust/discovery.
     """
-    # Sageo identity fields
     sageo_id: str                               # Sageo-assigned unique identifier (on-chain)
     owner: str                                  # MOI participant ID of the agent owner
     status: AgentStatus                         # Sageo operational status
     created_at: int                             # Unix timestamp of registration
     updated_at: int                             # Unix timestamp of last update
 
-    # A2A AgentCard (composed, not duplicated)
     agent_card: AgentCard                       # The agent's A2A AgentCard with all metadata
 
 
@@ -226,7 +223,7 @@ class SageoIdentityLogic:
             limit - Maximum results to return (default: 20)
 
         Output:
-            Ranked list of matching agents
+            Ranked list of matching agents (their profiles)
         """
         pass
 
@@ -357,23 +354,24 @@ class SageoClient:
     This is the primary interface developers use to integrate Sageo.
     """
 
-    def __init__(self, moi_rpc_url: str, agent_key: str, agent_card: AgentCard):
+    def __init__(self, moi_rpc_url: str, moi_api_key: str, agent_key: str, agent_card: AgentCard):
         """
-        Initializes the Sageo client and ensures agent is registered.
+        Initializes the Sageo client, ensures agent is registered and creates/loads an AgentProfile.
 
         Input:
-            moi_rpc_url - URL of the MOI RPC endpoint
+            moi_rpc_url - URL of the MOI RPC endpoint needed to connect to the blockchain
+            moi_api_key - API key to access the RPC endpoints [https://voyage-docs.moi.technology/docs/getting-started/#2-creating-an-api-key]
             agent_key - Private key for signing interactions
             agent_card - This agent's A2A AgentCard
         """
         pass
 
-    def ensure_registered(self) -> AgentProfile:
+    def ensure_registered(self) -> bool:
         """
-        Ensures this agent is registered on Sageo, registering if necessary.
+        Ensures this agent is registered on Sageo and if not, directs user to agent registration flow.
 
         Output:
-            This agent's profile (existing or newly created)
+            boolean True/False - registered or not.
         """
         pass
 
