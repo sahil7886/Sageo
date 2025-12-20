@@ -1,6 +1,8 @@
 from typing import Optional, List, Dict, Any
 from dataclasses import dataclass
 from enum import Enum
+import uuid
+import time
 
 class AgentStatus(Enum):
     """Sageo-specific status states for registered agents."""
@@ -163,8 +165,8 @@ class SageoIdentityLogic:
             The newly created agent profile with assigned sageo_id
         """
         
-        if actor_id in self._agent_id_by_actor:
-            raise ValueError("Actor already owns a registered agent")
+        if owner is None:
+            raise ValueError("owner is required to register an agent in this context")
 
         if not agent_card.is_identity_complete():
             raise ValueError("AgentCard missing required identity fields")
@@ -174,7 +176,7 @@ class SageoIdentityLogic:
 
         profile = AgentProfile(
             sageo_id=sageo_id,
-            actor_id=actor_id,
+            owner=owner,
             agent_card=agent_card,
             status=AgentStatus.ACTIVE,
             created_at=now,
@@ -182,11 +184,11 @@ class SageoIdentityLogic:
         )
 
         self._agents_by_id[sageo_id] = profile
-        self._agent_id_by_actor[actor_id] = sageo_id
+        self._agent_id_by_actor[owner] = sageo_id
 
         # Optional index (if endpoint URL exists)
-        if agent_card.supported_interfaces:
-            for interface in agent_card.supported_interfaces:
+        if agent_card.additional_interfaces:
+            for interface in agent_card.additional_interfaces:
                 self._agent_id_by_url[interface.url] = sageo_id
 
         return profile
@@ -241,10 +243,10 @@ class SageoIdentityLogic:
         Output:
             The updated agent profile
         """
-        sageo_id = self._agent_id_by_url.get(url)
-        if not sageo_id:
-            return None
-        return self._agents_by_id.get(sageo_id)
+        profile = self._require_agent(sageo_id)
+        profile.agent_card = agent_card
+        profile.updated_at = int(time.time())
+        return profile
 
     def set_agent_status(self, sageo_id: str, status: AgentStatus, caller_actor_id: str,
         is_admin: bool = False) -> AgentProfile:
@@ -364,13 +366,13 @@ class SageoIdentityLogic:
 
         results = [
             a for a in self._agents_by_id.values()
-            if any(skill.name == skill_id for skill in a.agent_card.skills)
+            if any(skill.id == skill_id for skill in a.agent_card.skills)
         ]
 
         return results[:limit]
 
-        # An internal helper method to ensure an agent exists
-        def _require_agent(self, sageo_id: str) -> AgentProfile:
+    # An internal helper method to ensure an agent exists
+    def _require_agent(self, sageo_id: str) -> AgentProfile:
         agent = self._agents_by_id.get(sageo_id)
         if not agent:
             raise KeyError("Agent not found")
