@@ -12,6 +12,7 @@ Import these types directly from the official A2A SDK:
 import type {
     // Core agent metadata types
     AgentCard,
+    A2AClient,
     AgentSkill,
     AgentCapabilities,
     AgentProvider,
@@ -117,6 +118,12 @@ interface SendMessageRequest {
     method: "message/send";
     params: MessageSendParams;
 }
+
+export type StreamingEvent =
+  | Task
+  | Message
+  | TaskStatusUpdateEvent
+  | TaskArtifactUpdateEvent;
 ```
 
 ---
@@ -124,6 +131,37 @@ interface SendMessageRequest {
 ## Sageo-Specific Types
 
 These types are defined by Sageo and are NOT part of the A2A spec.
+
+### SageoTraceMetadata
+```typescript
+export const SAGEO_EXTENSION_URI = "moi://sageo/extensions/trace/v1";
+
+export interface SageoTraceMetadataV1 {
+  v: 1;
+
+  conversation_id: string;   // stable across a thread (maps to A2A contextId)
+  interaction_id: string;    // stable per request/response pair (can map to A2A messageId)
+
+  caller_sageo_id: string;
+  callee_sageo_id: string;
+
+  a2a: {
+    contextId?: string; // A2A Message.contextId 
+    taskId?: string;    // A2A Message.taskId 
+    messageId?: string; // A2A Message.messageId 
+    method?: "message/send" | "message/stream";
+  };
+
+  intent: string;
+  a2a_client_timestamp_ms?: number; // optional client-side timing
+}
+
+export type SageoMetadataEnvelope = {
+  [SAGEO_EXTENSION_URI]: SageoTraceMetadataV1;
+};
+```
+
+Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions) usings A2A's extension hooks.
 
 ### AgentStatus
 
@@ -160,15 +198,35 @@ interface InteractionRecord {
     caller_agent_id: string;
     callee_agent_id: string;
     request_hash: string;
+    request_signature: string;      // caller signs request_hash
     response_hash: string | null;
+    response_signature: string | null; // callee signs response_hash
     intent: string;
     status_code: number | null;
     timestamp: number;
-    signature: string;
+    a2a_context_id: string;
+    a2a_task_id: string;
+    a2a_message_id: string;
 }
 ```
 
 On-chain proof of an agent-to-agent interaction.
+
+### SageoHashSpec
+
+```typescript
+export type SageoHashAlg = "sha256";
+export type SageoCanonicalization = "utf8-json" | "raw-bytes";
+
+export interface SageoHashSpec {
+  alg: SageoHashAlg;
+  canonicalization: SageoCanonicalization;
+
+  scope: "Message" | "SendMessageRequest.params" | "Message.parts";
+}
+```
+
+Hash the serialized A2A Message object (including metadata/extensions) using the chosen canonicalization.
 
 ---
 
@@ -354,7 +412,7 @@ log_request(
     callee_agent_id: string,
     request_hash: string,
     intent: string,
-    signature: string
+    request_signature: string
 ): string
 ```
 
@@ -365,7 +423,7 @@ Logs the initiation of an agent-to-agent request and returns an interaction ID.
 - `callee_agent_id` - Sageo ID of the agent receiving the request
 - `request_hash` - SHA-256 hash of the request payload
 - `intent` - Short label describing the request purpose (e.g., "currency_conversion")
-- `signature` - Cryptographic signature of request_hash by caller
+- `request_signature` - Cryptographic signature of request_hash by caller
 
 **Output:**
 - Unique `interaction_id` for linking the subsequent response
@@ -379,7 +437,7 @@ log_response(
     interaction_id: string,
     response_hash: string,
     status_code: number,
-    signature: string
+    response_signature: string
 ): InteractionRecord
 ```
 
@@ -389,7 +447,7 @@ Logs the response to a previously logged request, completing the interaction pro
 - `interaction_id` - ID returned from `log_request`
 - `response_hash` - SHA-256 hash of the response payload
 - `status_code` - HTTP-like status code (200=success, 400=client error, 500=server error)
-- `signature` - Cryptographic signature of response_hash by callee
+- `response_signature` - Cryptographic signature of response_hash by callee
 
 **Output:**
 - The completed interaction record
