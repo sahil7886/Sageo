@@ -485,12 +485,13 @@ class SageoExplorer:
     Read-only operations that don't require agent registration.
     """
 
-    def __init__(self, moi_rpc_url: str):
+    def __init__(self, moi_rpc_url: str, moi_api_key: str):
         """
         Initializes the explorer client.
 
         Input:
             moi_rpc_url - URL of the MOI RPC endpoint
+            api_key - MOI api key
         """
         pass
 
@@ -575,13 +576,14 @@ class SageoExplorer:
         """
         pass
 
-    def get_agent_interactions(self, agent_id: str, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
+    def get_agent_interactions(self, agent_id: str, start_time: Optional[int] = None, end_time: Optional[int] = None, limit: int = 50, offset: int = 0) -> List[InteractionRecord]:
         """
         Gets interactions for a specific agent.
 
         Input:
             agent_id - Sageo agent ID
-            direction - Filter by direction
+            start_time - Unix timestamp start filter
+            end_time - Unix timestamp end filter
             limit - Max results
             offset - Pagination offset
 
