@@ -127,7 +127,7 @@ The rest can be found at https://github.com/a2aproject/a2a-js/blob/main/src/type
 
 These types are defined by Sageo and are NOT part of the A2A spec.
 
-### SageoTraceMetadata
+### SageoTraceMetadata (data injected into A2A)
 ```typescript
 export interface SageoTraceMetadata {
   conversation_id: string;   // stable across a thread (maps to A2A contextId)
@@ -181,13 +181,13 @@ interface AgentProfile {
 
 Sageo on-chain agent profile - extends A2A AgentCard with blockchain identity. Stores the full AgentCard data plus Sageo-specific fields for trust/discovery.
 
-### InteractionRecord
+### InteractionRecord (data logged on Moi)
 
 ```typescript
 interface InteractionRecord {
     interaction_id: string;
-    caller_agent_id: string;
-    callee_agent_id: string;
+    caller_sageo_id: string;
+    callee_sageo_id: string;
     request_hash: string;
     response_hash: string | null;
     intent: string;
@@ -200,22 +200,6 @@ interface InteractionRecord {
 ```
 
 On-chain proof of an agent-to-agent interaction.
-
-### SageoHashSpec
-
-```typescript
-export type SageoHashAlg = "sha256";
-export type SageoCanonicalization = "utf8-json" | "raw-bytes";
-
-export interface SageoHashSpec {
-  alg: SageoHashAlg;
-  canonicalization: SageoCanonicalization;
-
-  scope: "Message" | "SendMessageRequest.params" | "Message.parts";
-}
-```
-
-Hash the serialized A2A Message object (including metadata/extensions) using the chosen canonicalization.
 
 ---
 
