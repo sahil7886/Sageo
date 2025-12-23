@@ -6,15 +6,14 @@ This document defines the types, interfaces, and API for the Sageo SDK - a trust
 
 ## A2A Types (from `@a2a-js/sdk`)
 
-Import these types directly from the official A2A SDK:
+Types imported directly from the official A2A SDK: (found here: https://github.com/a2aproject/a2a-js/blob/main/src/types.ts)
 
 ```typescript
 import type {
     // Core agent metadata types
     AgentCard,
-    A2AClient,
     AgentSkill,
-    AgentCapabilities,
+    AgentCapabilities1,
     AgentProvider,
     AgentInterface,
     AgentExtension,
@@ -22,14 +21,14 @@ import type {
     SecurityScheme,
 
     // Message and content types
-    Message,
+    Message1 as Message,
     Part,
     TextPart,
     FilePart,
     DataPart,
 
     // Task types
-    Task,
+    Task1 as Task,
     TaskStatus,
     TaskState,
     Artifact,
@@ -44,25 +43,26 @@ import type {
     MessageSendConfiguration,
 
     // Push notification types
-    PushNotificationConfig,
-    TaskPushNotificationConfig,
+    PushNotificationConfig1,
+    TaskPushNotificationConfig1,
 } from '@a2a-js/sdk';
 ```
 
 ### Key A2A Type Definitions (Reference)
+These are definitions of just some of the core types we import from @a2a-js/sdk. Listed here for reference.
 
 ```typescript
 interface AgentCard {
-    name: string;                                    // Human-readable agent name
-    description: string;                             // Agent purpose and capabilities summary
-    version: string;                                 // Agent version
-    url: string;                                     // Primary endpoint URL
-    protocolVersion: string;                         // A2A protocol version (e.g., "1.0")
-    defaultInputModes: string[];                     // Default accepted input formats
-    defaultOutputModes: string[];                    // Default output formats
-    capabilities: AgentCapabilities;                 // Supported features and operations
-    skills: AgentSkill[];                            // Available agent skills
-    provider?: AgentProvider;                        // Organization info
+    name: string;
+    description: string;
+    version: string;
+    url: string;
+    protocolVersion: string;
+    defaultInputModes: string[];
+    defaultOutputModes: string[];
+    capabilities: AgentCapabilities1;
+    skills: AgentSkill[];
+    provider?: AgentProvider;
     iconUrl?: string;
     documentationUrl?: string;
     preferredTransport?: "JSONRPC" | "GRPC" | "HTTP+JSON";
@@ -74,21 +74,21 @@ interface AgentCard {
 }
 
 interface AgentSkill {
-    id: string;                                      // Unique skill identifier
-    name: string;                                    // Human-readable skill name
-    description: string;                             // Skill functionality description
-    tags: string[];                                  // Categorization tags
-    examples?: string[];                             // Example inputs/queries
-    inputModes?: string[];                           // Accepted input formats
-    outputModes?: string[];                          // Output formats
-    security?: Record<string, string[]>[];           // Skill-specific security requirements
+    id: string;
+    name: string;
+    description: string;
+    tags: string;
+    examples?: string[];
+    inputModes?: string[];
+    outputModes?: string[];
+    security?: Record<string, string[]>[];
 }
 
-interface AgentCapabilities {
-    streaming?: boolean;                             // Real-time event delivery support
-    pushNotifications?: boolean;                     // Webhook notification capability
-    stateTransitionHistory?: boolean;                // Task state history support
-    extensions?: AgentExtension[];                   // Additional functionality declarations
+interface AgentCapabilities1 {
+    streaming?: boolean;
+    pushNotifications?: boolean;
+    stateTransitionHistory?: boolean;
+    extensions?: AgentExtension[];
 }
 
 interface Task {
@@ -118,14 +118,9 @@ interface SendMessageRequest {
     method: "message/send";
     params: MessageSendParams;
 }
-
-export type StreamingEvent =
-  | Task
-  | Message
-  | TaskStatusUpdateEvent
-  | TaskArtifactUpdateEvent;
 ```
 
+The rest can be found at https://github.com/a2aproject/a2a-js/blob/main/src/types.ts or https://a2a-protocol.org/v0.3.0/specification/.
 ---
 
 ## Sageo-Specific Types
@@ -134,11 +129,7 @@ These types are defined by Sageo and are NOT part of the A2A spec.
 
 ### SageoTraceMetadata
 ```typescript
-export const SAGEO_EXTENSION_URI = "moi://sageo/extensions/trace/v1";
-
-export interface SageoTraceMetadataV1 {
-  v: 1;
-
+export interface SageoTraceMetadata {
   conversation_id: string;   // stable across a thread (maps to A2A contextId)
   interaction_id: string;    // stable per request/response pair (can map to A2A messageId)
 
@@ -153,7 +144,7 @@ export interface SageoTraceMetadataV1 {
   };
 
   intent: string;
-  a2a_client_timestamp_ms?: number; // optional client-side timing
+  a2a_client_timestamp_ms?: timestamp; // optional client-side timing
 }
 
 export type SageoMetadataEnvelope = {
@@ -161,7 +152,7 @@ export type SageoMetadataEnvelope = {
 };
 ```
 
-Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions) usings A2A's extension hooks.
+Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions) usings A2A's extension hooks. ["https://a2a-protocol.org/latest/topics/extensions/#limitations"]
 
 ### AgentStatus
 
@@ -169,7 +160,7 @@ Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENS
 enum AgentStatus {
     ACTIVE = "ACTIVE",
     PAUSED = "PAUSED",
-    COMPROMISED = "COMPROMISED"
+    DEPRECATED = "DEPRECATED"
 }
 ```
 
@@ -182,8 +173,8 @@ interface AgentProfile {
     sageo_id: string;           // Sageo-assigned unique identifier (on-chain)
     owner: string;              // MOI participant ID of the agent owner
     status: AgentStatus;        // Sageo operational status
-    created_at: number;         // Unix timestamp of registration
-    updated_at: number;         // Unix timestamp of last update
+    created_at: timestamp;         // Unix timestamp of registration
+    updated_at: timestamp;         // Unix timestamp of last update
     agent_card: AgentCard;      // The agent's A2A AgentCard with all metadata
 }
 ```
@@ -198,9 +189,7 @@ interface InteractionRecord {
     caller_agent_id: string;
     callee_agent_id: string;
     request_hash: string;
-    request_signature: string;      // caller signs request_hash
     response_hash: string | null;
-    response_signature: string | null; // callee signs response_hash
     intent: string;
     status_code: number | null;
     timestamp: number;
@@ -411,8 +400,7 @@ log_request(
     caller_agent_id: string,
     callee_agent_id: string,
     request_hash: string,
-    intent: string,
-    request_signature: string
+    intent: string
 ): string
 ```
 
@@ -423,7 +411,6 @@ Logs the initiation of an agent-to-agent request and returns an interaction ID.
 - `callee_agent_id` - Sageo ID of the agent receiving the request
 - `request_hash` - SHA-256 hash of the request payload
 - `intent` - Short label describing the request purpose (e.g., "currency_conversion")
-- `request_signature` - Cryptographic signature of request_hash by caller
 
 **Output:**
 - Unique `interaction_id` for linking the subsequent response
@@ -436,8 +423,7 @@ Logs the initiation of an agent-to-agent request and returns an interaction ID.
 log_response(
     interaction_id: string,
     response_hash: string,
-    status_code: number,
-    response_signature: string
+    status_code: number
 ): InteractionRecord
 ```
 
@@ -447,7 +433,6 @@ Logs the response to a previously logged request, completing the interaction pro
 - `interaction_id` - ID returned from `log_request`
 - `response_hash` - SHA-256 hash of the response payload
 - `status_code` - HTTP-like status code (200=success, 400=client error, 500=server error)
-- `response_signature` - Cryptographic signature of response_hash by callee
 
 **Output:**
 - The completed interaction record
