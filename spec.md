@@ -325,14 +325,14 @@ Lists registered agents with optional filtering.
 search_agents(query: string, limit?: number): AgentProfile[]
 ```
 
-Searches agents by name, description, or skill tags using fuzzy matching.
+Searches agents by name, description, or skill tags using substring matching (case-insensitive). For fuzzy matching and advanced ranking, use the client-side `SageoExplorer.search_agents` method.
 
 **Input:**
 - `query` - Search query string
 - `limit` - Maximum results to return (default: 20)
 
 **Output:**
-- Ranked list of matching agents
+- List of matching agents (simple substring match, not ranked)
 
 ---
 
@@ -752,14 +752,14 @@ Lists registered agents with optional filtering.
 search_agents(query: string, limit?: number): AgentProfile[]
 ```
 
-Searches for agents by name, description, or tags.
+Searches for agents by name, description, or tags using fuzzy matching and ranking. This client-side method queries the on-chain logic (via `list_agents` or the on-chain `search_agents`) to fetch candidate agents, while applying fuzzy matching algorithms (e.g., using libraries like Fuse.js or Fuzzysort).
 
 **Input:**
 - `query` - Search query
 - `limit` - Max results (default: 20)
 
 **Output:**
-- Ranked search results
+- Ranked search results (best matches first)
 
 ---
 
