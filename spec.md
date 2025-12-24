@@ -240,22 +240,6 @@ Retrieves an agent profile by its Sageo ID.
 
 ---
 
-### `get_agent_by_actor_id`
-
-```typescript
-get_agent_by_actor_id(actor_id: string): AgentProfile | null
-```
-
-Ownership lookup (used by SDK during init).
-
-**Input:**
-- `actor_id` - MOI actor/participant ID
-
-**Output:**
-- The agent profile if found, `null` otherwise
-
----
-
 ### `get_agent_by_url`
 
 ```typescript
@@ -278,7 +262,7 @@ Retrieves an agent profile by its A2A endpoint URL.
 update_agent_card(sageo_id: string, agent_card: AgentCard): AgentProfile
 ```
 
-Updates an agent's full AgentCard metadata (owner-only operation).
+Updates an agent's full AgentCard metadata (owner-only operation). Called by the frontend agent manager. Ownership is verified by checking that the transaction sender matches the agent's owner.
 
 **Input:**
 - `sageo_id` - Sageo ID of the agent to update
@@ -294,19 +278,15 @@ Updates an agent's full AgentCard metadata (owner-only operation).
 ```typescript
 set_agent_status(
     sageo_id: string,
-    status: AgentStatus,
-    caller_actor_id: string,
-    is_admin?: boolean
+    status: AgentStatus
 ): AgentProfile
 ```
 
-Updates an agent's operational status (owner-only for PAUSED, admin for COMPROMISED).
+Updates an agent's operational status (owner-only). Called by the frontend agent manager. Ownership is verified by checking that the transaction sender matches the agent's owner.
 
 **Input:**
 - `sageo_id` - Sageo ID of the agent
 - `status` - New status (ACTIVE, PAUSED, or COMPROMISED)
-- `caller_actor_id` - Actor ID of the caller
-- `is_admin` - Whether caller has admin privileges (default: false)
 
 **Output:**
 - The updated agent profile
