@@ -849,186 +849,130 @@ const sageoHandler = new SageoRequestHandler(underlyingHandler, sageoClient);
 
 ## SageoExplorer
 
-Client for querying the Sageo network - discovering agents and viewing interactions. Read-only operations that don't require agent registration.
-
-### Constructor
-
-```typescript
-new SageoExplorer(moi_rpc_url: string)
-```
-
-Initializes the explorer client.
-
-**Input:**
-- `moi_rpc_url` - URL of the MOI RPC endpoint
+REST API server that the frontend connects to for querying the Sageo network. Provides read-only endpoints for agent discovery and interaction viewing. Connects to MOI blockchain via RPC.
 
 ---
 
-### `get_agent`
-
-```typescript
-get_agent(sageo_id?: string, url?: string): AgentProfile | null
-```
-
-Retrieves an agent profile by Sageo ID or URL.
-
-**Input:**
-- `sageo_id` - Sageo agent ID (preferred)
-- `url` - A2A endpoint URL (fallback)
-
-**Output:**
-- Agent profile if found
-
-> **Note:** Must provide at least one of `sageo_id` or `url`
-
----
-
-### `get_agent_card`
-
-```typescript
-get_agent_card(sageo_id: string): AgentCard | null
-```
-
-Retrieves just the A2A AgentCard for an agent.
-
-**Input:**
-- `sageo_id` - Sageo agent ID
-
-**Output:**
-- The agent's A2A AgentCard if found
-
----
-
-### `list_agents`
-
-```typescript
-list_agents(
-    tags?: string[],
-    status?: AgentStatus,
-    capabilities?: Record<string, boolean>,
-    limit?: number,  // default: 50
-    offset?: number  // default: 0
-): AgentProfile[]
-```
+### `GET /agents`
 
 Lists registered agents with optional filtering.
 
-**Input:**
-- `tags` - Filter by skill tags
-- `status` - Filter by status
-- `capabilities` - Filter by capabilities (e.g., `{"streaming": true}`)
-- `limit` - Max results (default: 50)
-- `offset` - Pagination offset
+**Query Parameters:**
+- `tags` - Comma-separated skill tags to filter by
+- `status` - Filter by status (ACTIVE, PAUSED, DEPRECATED)
+- `streaming` - Filter by streaming capability (true/false)
+- `limit` - Max results (default: 50, max: 100)
+- `offset` - Pagination offset (default: 0)
 
-**Output:**
-- Matching agent profiles
+**Response:** `AgentProfile[]`
 
 ---
 
-### `search_agents`
+### `GET /agents/search`
 
-```typescript
-search_agents(query: string, limit?: number): AgentProfile[]
-```
+Searches for agents by name, description, or tags using fuzzy matching and ranking.
 
-Searches for agents by name, description, or tags using fuzzy matching and ranking. This client-side method queries the on-chain logic (via `list_agents` or the on-chain `search_agents`) to fetch candidate agents, while applying fuzzy matching algorithms (e.g., using libraries like Fuse.js or Fuzzysort).
-
-**Input:**
-- `query` - Search query
+**Query Parameters:**
+- `q` - Search query (required)
 - `limit` - Max results (default: 20)
 
-**Output:**
-- Ranked search results (best matches first)
+**Response:** `AgentProfile[]` (ranked by relevance)
 
 ---
 
-### `find_agents_by_skill`
-
-```typescript
-find_agents_by_skill(skill_id: string, limit?: number): AgentProfile[]
-```
+### `GET /agents/by-skill/:skill_id`
 
 Finds agents that have a specific skill.
 
-**Input:**
+**Path Parameters:**
 - `skill_id` - The skill ID to search for
-- `limit` - Maximum results (default: 50)
 
-**Output:**
-- List of agents with the specified skill
+**Query Parameters:**
+- `limit` - Max results (default: 50)
 
----
-
-### `get_interaction`
-
-```typescript
-get_interaction(interaction_id: string): InteractionRecord | null
-```
-
-Retrieves a specific interaction by ID.
-
-**Input:**
-- `interaction_id` - Interaction identifier
-
-**Output:**
-- Interaction if found
+**Response:** `AgentProfile[]`
 
 ---
 
-### `get_agent_interactions`
+### `GET /agents/by-url`
 
-```typescript
-get_agent_interactions(
-    agent_id: string,
-    limit?: number,  // default: 50
-    offset?: number  // default: 0
-): InteractionRecord[]
-```
+Retrieves an agent profile by its A2A endpoint URL.
+
+**Query Parameters:**
+- `url` - A2A endpoint URL (required)
+
+**Response:** `AgentProfile | null`
+
+---
+
+### `GET /agents/:sageo_id`
+
+Retrieves an agent profile by Sageo ID.
+
+**Path Parameters:**
+- `sageo_id` - Sageo agent ID
+
+**Response:** `AgentProfile | null`
+
+---
+
+### `GET /agents/:sageo_id/card`
+
+Retrieves just the A2A AgentCard for an agent.
+
+**Path Parameters:**
+- `sageo_id` - Sageo agent ID
+
+**Response:** `AgentCard | null`
+
+---
+
+### `GET /agents/:sageo_id/interactions`
 
 Gets interactions for a specific agent.
 
-**Input:**
-- `agent_id` - Sageo agent ID
-- `limit` - Max results
-- `offset` - Pagination offset
+**Path Parameters:**
+- `sageo_id` - Sageo agent ID
 
-**Output:**
-- Agent's interactions
+**Query Parameters:**
+- `limit` - Max results (default: 50, max: 100)
+- `offset` - Pagination offset (default: 0)
+
+**Response:** `InteractionRecord[]`
 
 ---
 
-### `get_agent_stats`
-
-```typescript
-get_agent_stats(agent_id: string): AgentInteractionStats
-```
+### `GET /agents/:sageo_id/stats`
 
 Gets aggregate statistics for an agent.
 
-**Input:**
-- `agent_id` - Sageo agent ID
+**Path Parameters:**
+- `sageo_id` - Sageo agent ID
 
-**Output:**
-- Interaction statistics
+**Response:** `AgentInteractionStats`
 
 ---
 
-### `verify_interaction`
+### `GET /interactions/:interaction_id`
 
-```typescript
-verify_interaction(
-    interaction_id: string,
-    request_payload: Uint8Array,
-    response_payload?: Uint8Array
-): boolean
-```
+Retrieves a specific interaction by ID.
 
-Verifies payloads match on-chain hashes.
+**Path Parameters:**
+- `interaction_id` - Interaction identifier
 
-**Input:**
+**Response:** `InteractionRecord | null`
+
+---
+
+### `GET /interactions/:interaction_id/verify`
+
+Verifies that provided payloads match the on-chain hashes.
+
+**Path Parameters:**
 - `interaction_id` - Interaction to verify
-- `request_payload` - Request data to check
-- `response_payload` - Response data to check (optional)
 
-**Output:**
-- `true` if hashes match
+**Query Parameters:**
+- `request_hash` - Hash of request payload to check (required)
+- `response_hash` - Hash of response payload to check (optional)
+
+**Response:** `{ valid: boolean }`
