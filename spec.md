@@ -155,6 +155,12 @@ export interface SageoTraceMetadata {
   caller_sageo_id: string;
   callee_sageo_id: string;
 
+  // End-user context (optional) - propagated through the agent chain
+  end_user?: {
+    id: string;              // opaque user identifier (set by first agent in chain)
+    session_id?: string;     // groups interactions from a single user session
+  };
+
   a2a: {
     contextId?: string; // A2A Message.contextId 
     taskId?: string;    // A2A Message.taskId 
@@ -172,6 +178,8 @@ export type SageoMetadataEnvelope = {
 ```
 
 Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions), using A2A's extension hooks. ["https://a2a-protocol.org/latest/topics/extensions/"]
+
+When an agent receives a request with `end_user` context, it should propagate this to any downstream agent calls. The first agent in the chain (typically the one interfacing with the human user) is responsible for setting the `end_user` fields.
 
 ### AgentStatus
 
@@ -215,10 +223,12 @@ interface InteractionRecord {
     a2a_context_id: string;
     a2a_task_id: string;
     a2a_message_id: string;
+    end_user_id: string | null;       // opaque user identifier if provided
+    end_user_session_id: string | null; // user session identifier if provided
 }
 ```
 
-On-chain proof of an agent-to-agent interaction.
+On-chain proof of an agent-to-agent interaction. The `end_user_*` fields are populated from the `SageoTraceMetadata.end_user` context when present.
 
 ---
 
