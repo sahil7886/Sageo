@@ -45,7 +45,26 @@ import type {
     // Push notification types
     PushNotificationConfig1,
     TaskPushNotificationConfig1,
+
+    // Task query/control types
+    TaskQueryParams,
+    TaskIdParams,
+    GetTaskPushNotificationConfigParams,
+    ListTaskPushNotificationConfigParams,
+    DeleteTaskPushNotificationConfigParams,
 } from '@a2a-js/sdk';
+
+// Server-side types from @a2a-js/sdk/server
+import type {
+    A2ARequestHandler,
+    AgentExecutor,
+    RequestContext,
+    ExecutionEventBus,
+    TaskStore,
+    ServerCallContext,
+} from '@a2a-js/sdk/server';
+
+import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server';
 ```
 
 ### Key A2A Type Definitions (Reference)
@@ -144,15 +163,15 @@ export interface SageoTraceMetadata {
   };
 
   intent: string;
-  a2a_client_timestamp_ms?: timestamp; // optional client-side timing
+  a2a_client_timestamp_ms?: number; // optional client-side timing (unix ms)
 }
 
 export type SageoMetadataEnvelope = {
-  [SAGEO_EXTENSION_URI]: SageoTraceMetadataV1;
+  [SAGEO_EXTENSION_URI]: SageoTraceMetadata;
 };
 ```
 
-Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions) usings A2A's extension hooks. ["https://a2a-protocol.org/latest/topics/extensions/#limitations"]
+Sageo injects SageoMetadataEnvelope into Message.metadata (and adds SAGEO_EXTENSION_URI into Message.extensions), using A2A's extension hooks. ["https://a2a-protocol.org/latest/topics/extensions/"]
 
 ### AgentStatus
 
@@ -465,28 +484,6 @@ Lists all interactions between two specific agents (in either direction).
 
 ---
 
-### `verify_interaction`
-
-```typescript
-verify_interaction(
-    interaction_id: string,
-    request_payload: Uint8Array,
-    response_payload?: Uint8Array
-): boolean
-```
-
-Verifies that provided payloads match the on-chain hashes for an interaction.
-
-**Input:**
-- `interaction_id` - Unique interaction identifier
-- `request_payload` - Original request payload to verify
-- `response_payload` - Original response payload to verify (optional)
-
-**Output:**
-- `true` if all provided payloads match their on-chain hashes
-
----
-
 ### `get_agent_interaction_stats`
 
 ```typescript
@@ -544,22 +541,6 @@ Returns the current agent's Sageo profile.
 
 ---
 
-### `update_my_card`
-
-```typescript
-update_my_card(agent_card: AgentCard): AgentProfile
-```
-
-Updates this agent's AgentCard metadata on Sageo.
-
-**Input:**
-- `agent_card` - Updated A2A AgentCard
-
-**Output:**
-- Updated profile
-
----
-
 ### `wrap_a2a_client`
 
 ```typescript
@@ -576,6 +557,22 @@ Wraps an existing A2A client to automatically log interactions.
 
 ---
 
+### `wrap_request_handler`
+
+```typescript
+wrap_request_handler(handler: DefaultRequestHandler): SageoRequestHandler
+```
+
+Wraps an existing A2A `DefaultRequestHandler` to automatically log responses when this agent receives requests.
+
+**Input:**
+- `handler` - An instance of `DefaultRequestHandler` from `@a2a-js/sdk/server`
+
+**Output:**
+- `SageoRequestHandler` that logs responses to MOI
+
+---
+
 ### `log_interaction_manually`
 
 ```typescript
@@ -588,7 +585,7 @@ log_interaction_manually(
 ): InteractionRecord
 ```
 
-Manually logs a complete interaction (for cases where wrapping isn't possible).
+Manually logs a complete interaction (fallback mechanism for cases where wrapping doesn't work).
 
 **Input:**
 - `callee_sageo_id` - Sageo ID of the agent that was called
@@ -626,7 +623,7 @@ Creates a wrapped A2A client.
 async send_message(request: SendMessageRequest): Promise<Task | Message>
 ```
 
-Sends a message to the remote agent with automatic Sageo logging.
+Sends a message to the remote agent with automatic Sageo logging. Calls log_request() coco endpoint.
 
 **Input:**
 - `request` - Standard A2A message request
@@ -665,6 +662,188 @@ Retrieves a task by ID (passthrough, no logging needed).
 
 **Output:**
 - The task object
+
+---
+
+## SageoRequestHandler
+
+A wrapper around the A2A SDK's `DefaultRequestHandler` that logs interactions when your agent receives requests from other agents. This is the server-side complement to `SageoA2AClientWrapper`.
+
+
+```typescript
+new SageoRequestHandler(
+    underlying: DefaultRequestHandler,
+    sageo_client: SageoClient
+)
+```
+
+Creates a Sageo-aware request handler that wraps an existing `DefaultRequestHandler`.
+
+**Input:**
+- `underlying` - The `DefaultRequestHandler` instance that processes requests
+- `sageo_client` - The `SageoClient` for logging interactions to MOI
+
+---
+
+### `sendMessage`
+
+```typescript
+sendMessage(
+    params: MessageSendParams,
+    context?: ServerCallContext
+): Message | Task
+```
+
+Handles an incoming message request with automatic Sageo response logging. Extracts `SageoTraceMetadata` from the message, delegates to the underlying handler, and logs the response hash to MOI if trace metadata is present.
+
+**Input:**
+- `params` - Standard A2A `MessageSendParams`
+- `context` - Optional server call context
+
+**Output:**
+- Standard A2A response (Task or Message)
+
+---
+
+### `sendMessageStream`
+
+```typescript
+sendMessageStream(
+    params: MessageSendParams,
+    context?: ServerCallContext
+): Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent
+```
+
+Handles a streaming message request with Sageo response logging after stream completion. Yields events from the underlying handler and logs the final task state hash to MOI if trace metadata is present.
+
+**Input:**
+- `params` - Standard A2A `MessageSendParams`
+- `context` - Optional server call context
+
+**Output:**
+- Stream of A2A events
+
+---
+
+### `getAgentCard`
+
+```typescript
+getAgentCard(): AgentCard
+```
+
+Passthrough to underlying handler. Returns the agent's card.
+
+---
+
+### `getTask`
+
+```typescript
+async getTask(params: TaskQueryParams, context?: ServerCallContext): Task
+```
+
+Passthrough to underlying handler. Retrieves task by ID (no logging needed).
+
+---
+
+### `cancelTask`
+
+```typescript
+async cancelTask(params: TaskIdParams, context?: ServerCallContext): Task
+```
+
+Passthrough to underlying handler. Cancels a task (no logging needed).
+
+---
+
+### `setTaskPushNotificationConfig`
+
+```typescript
+setTaskPushNotificationConfig(
+    params: TaskPushNotificationConfig,
+    context?: ServerCallContext
+): TaskPushNotificationConfig
+```
+
+Passthrough to underlying handler.
+
+---
+
+### `getTaskPushNotificationConfig`
+
+```typescript
+getTaskPushNotificationConfig(
+    params: TaskIdParams | GetTaskPushNotificationConfigParams,
+    context?: ServerCallContext
+): TaskPushNotificationConfig
+```
+
+Passthrough to underlying handler.
+
+---
+
+### `listTaskPushNotificationConfigs`
+
+```typescript
+async listTaskPushNotificationConfigs(
+    params: ListTaskPushNotificationConfigParams,
+    context?: ServerCallContext
+): Promise<TaskPushNotificationConfig[]>
+```
+
+Passthrough to underlying handler.
+
+---
+
+### `deleteTaskPushNotificationConfig`
+
+```typescript
+async deleteTaskPushNotificationConfig(
+    params: DeleteTaskPushNotificationConfigParams,
+    context?: ServerCallContext
+): Promise<void>
+```
+
+Passthrough to underlying handler.
+
+---
+
+### `resubscribe`
+
+```typescript
+async *resubscribe(
+    params: TaskIdParams,
+    context?: ServerCallContext
+): AsyncGenerator<Task | TaskStatusUpdateEvent | TaskArtifactUpdateEvent>
+```
+
+Passthrough to underlying handler. Resubscribes to task updates (no additional logging needed as the original interaction was already logged).
+
+---
+
+### Sageo Server Side Usage Example
+
+```typescript
+import { DefaultRequestHandler, InMemoryTaskStore } from '@a2a-js/sdk/server';
+import { SageoClient, SageoRequestHandler } from 'sageo-sdk';
+
+const agentExecutor: AgentExecutor = new MyAgentExecutor();
+
+const underlyingHandler = new DefaultRequestHandler(
+    myAgentCard,
+    new InMemoryTaskStore(),
+    agentExecutor
+);
+
+const sageoClient = new SageoClient(
+    'https://moi-rpc.example.com',
+    process.env.MOI_AGENT_KEY,
+    myAgentCard
+);
+
+const sageoHandler = new SageoRequestHandler(underlyingHandler, sageoClient);
+
+// Use sageoHandler in your agent server setup
+```
 
 ---
 
