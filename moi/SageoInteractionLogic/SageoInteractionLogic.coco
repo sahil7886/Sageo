@@ -36,7 +36,7 @@ state actor:
     agent_id String
     agent_interactions []String
     stats AgentInteractionStats
-    counterparties Map[String]Bool
+    counterparties []String
 
 // runs once on deploy, sets up counter
 endpoint deploy dynamic Deploy():
@@ -67,10 +67,13 @@ endpoint dynamic LogRequest(
 
     // check callee is enlisted
     memory callee_sageo_id String
+    memory callee_enlisted Bool = false
     observe agent_id <- SageoInteractionLogic.Actor(callee_identifier).agent_id:
-        if agent_id == "":
-            throw "Callee not enlisted"
-        callee_sageo_id = agent_id
+        if agent_id != "":
+            callee_sageo_id = agent_id
+            callee_enlisted = true
+    if !callee_enlisted:
+        throw "Callee not enlisted"
 
     // generate unique id
     memory new_id String
@@ -109,11 +112,18 @@ endpoint dynamic LogRequest(
         caller_stats.total_requests_sent += 1
         caller_stats.last_interaction_at = timestamp
 
-    mutate caller_counterparties <- SageoInteractionLogic.Sender.counterparties:
-        if !caller_counterparties[callee_sageo_id]:
-            caller_counterparties[callee_sageo_id] = true
-            mutate s <- SageoInteractionLogic.Sender.stats:
-                s.unique_counterparties += 1
+    // track unique counterparties - check if already in list before adding
+    memory is_new_counterparty Bool = true
+    observe cp_list <- SageoInteractionLogic.Sender.counterparties:
+        for i in range(len(cp_list)):
+            if cp_list[i] == callee_sageo_id:
+                is_new_counterparty = false
+    
+    if is_new_counterparty:
+        mutate caller_counterparties <- SageoInteractionLogic.Sender.counterparties:
+            append(caller_counterparties, callee_sageo_id)
+        mutate s <- SageoInteractionLogic.Sender.stats:
+            s.unique_counterparties += 1
 
     // update callee stats
     mutate callee_interactions <- SageoInteractionLogic.Actor(callee_identifier).agent_interactions:
@@ -123,11 +133,18 @@ endpoint dynamic LogRequest(
         callee_stats.total_requests_received += 1
         callee_stats.last_interaction_at = timestamp
 
-    mutate callee_counterparties <- SageoInteractionLogic.Actor(callee_identifier).counterparties:
-        if !callee_counterparties[caller_sageo_id]:
-            callee_counterparties[caller_sageo_id] = true
-            mutate s <- SageoInteractionLogic.Actor(callee_identifier).stats:
-                s.unique_counterparties += 1
+    // track unique counterparties for callee - check if already in list before adding
+    memory is_new_counterparty_callee Bool = true
+    observe cp_list_callee <- SageoInteractionLogic.Actor(callee_identifier).counterparties:
+        for i in range(len(cp_list_callee)):
+            if cp_list_callee[i] == caller_sageo_id:
+                is_new_counterparty_callee = false
+    
+    if is_new_counterparty_callee:
+        mutate callee_counterparties <- SageoInteractionLogic.Actor(callee_identifier).counterparties:
+            append(callee_counterparties, caller_sageo_id)
+        mutate s <- SageoInteractionLogic.Actor(callee_identifier).stats:
+            s.unique_counterparties += 1
 
     // set return value
     interaction_id = new_id
@@ -173,11 +190,12 @@ endpoint static ListInteractionsByAgent(
 ) -> (records []InteractionRecord, total U64):
     memory result_records []InteractionRecord
     memory total_count U64 = 0
+    memory ids []String
 
-    storage ids []String
     observe agent_ids <- SageoInteractionLogic.Actor(agent_identifier).agent_interactions:
-        ids = agent_ids
-        total_count = U64(len(ids))
+        total_count = U64(len(agent_ids))
+        for i in range(total_count):
+            append(ids, agent_ids[i])
 
     if offset >= total_count:
         records = result_records
@@ -192,7 +210,21 @@ endpoint static ListInteractionsByAgent(
         for i in range(count):
             memory idx U64 = total_count - offset - 1 - i
             memory id String = ids[idx]
-            append(result_records, interactions[id])
+            memory rec InteractionRecord
+            rec.interaction_id = interactions[id].interaction_id
+            rec.caller_sageo_id = interactions[id].caller_sageo_id
+            rec.callee_sageo_id = interactions[id].callee_sageo_id
+            rec.request_hash = interactions[id].request_hash
+            rec.response_hash = interactions[id].response_hash
+            rec.intent = interactions[id].intent
+            rec.status_code = interactions[id].status_code
+            rec.timestamp = interactions[id].timestamp
+            rec.a2a_context_id = interactions[id].a2a_context_id
+            rec.a2a_task_id = interactions[id].a2a_task_id
+            rec.a2a_message_id = interactions[id].a2a_message_id
+            rec.end_user_id = interactions[id].end_user_id
+            rec.end_user_session_id = interactions[id].end_user_session_id
+            append(result_records, rec)
 
     records = result_records
     total = total_count
@@ -201,12 +233,17 @@ endpoint static ListInteractionsByAgent(
 endpoint static GetAgentInteractionStats(
     agent_identifier Identifier
 ) -> (stats AgentInteractionStats, found Bool):
-    storage result AgentInteractionStats
+    memory result AgentInteractionStats
     memory was_found Bool = false
     observe agent_id <- SageoInteractionLogic.Actor(agent_identifier).agent_id:
         was_found = agent_id != ""
     if was_found:
         observe s <- SageoInteractionLogic.Actor(agent_identifier).stats:
-            result = s
+            result.total_requests_sent = s.total_requests_sent
+            result.total_requests_received = s.total_requests_received
+            result.total_responses_sent = s.total_responses_sent
+            result.success_count = s.success_count
+            result.unique_counterparties = s.unique_counterparties
+            result.last_interaction_at = s.last_interaction_at
     stats = result
     found = was_found
