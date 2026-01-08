@@ -1,0 +1,735 @@
+syntax: 1
+engine:
+  kind: PISA
+  flags: []
+  version: 0.5.0
+kind: logic
+elements:
+- ptr: 0
+  kind: literal
+  data:
+    type: string
+    value: '0x06'
+- ptr: 1
+  kind: literal
+  data:
+    type: string
+    value: 0x0643616c6c6572206e6f7420656e6c6973746564
+- ptr: 2
+  kind: literal
+  data:
+    type: string
+    value: 0x0643616c6c6565206e6f7420656e6c6973746564
+- ptr: 3
+  kind: literal
+  data:
+    type: string
+    value: '0x0669785f'
+- ptr: 4
+  kind: literal
+  data:
+    type: string
+    value: 0x06496e746572616374696f6e206e6f7420666f756e64
+- ptr: 5
+  kind: literal
+  data:
+    type: i64
+    value: '0x03c8'
+- ptr: 6
+  kind: literal
+  data:
+    type: i64
+    value: '0x03012c'
+- ptr: 7
+  deps:
+  - 12
+  kind: typedef
+  data: '[]class.InteractionRecord'
+- ptr: 8
+  deps:
+  - 12
+  kind: typedef
+  data: map[string]class.InteractionRecord
+- ptr: 9
+  kind: typedef
+  data: '[]string'
+- ptr: 10
+  kind: typedef
+  data: map[string]bool
+- ptr: 11
+  kind: typedef
+  data: '[]u64'
+- ptr: 12
+  kind: class
+  data:
+    name: InteractionRecord
+    fields:
+    - slot: 0
+      label: interaction_id
+      type: string
+    - slot: 1
+      label: caller_sageo_id
+      type: string
+    - slot: 2
+      label: callee_sageo_id
+      type: string
+    - slot: 3
+      label: request_hash
+      type: string
+    - slot: 4
+      label: response_hash
+      type: string
+    - slot: 5
+      label: intent
+      type: string
+    - slot: 6
+      label: status_code
+      type: i64
+    - slot: 7
+      label: timestamp
+      type: u64
+    - slot: 8
+      label: a2a_context_id
+      type: string
+    - slot: 9
+      label: a2a_task_id
+      type: string
+    - slot: 10
+      label: a2a_message_id
+      type: string
+    - slot: 11
+      label: end_user_id
+      type: string
+    - slot: 12
+      label: end_user_session_id
+      type: string
+    methods: []
+- ptr: 13
+  kind: class
+  data:
+    name: AgentInteractionStats
+    fields:
+    - slot: 0
+      label: total_requests_sent
+      type: u64
+    - slot: 1
+      label: total_requests_received
+      type: u64
+    - slot: 2
+      label: total_responses_sent
+      type: u64
+    - slot: 3
+      label: success_count
+      type: u64
+    - slot: 4
+      label: unique_counterparties
+      type: u64
+    - slot: 5
+      label: last_interaction_at
+      type: u64
+    methods: []
+- ptr: 14
+  deps:
+  - 12
+  - 13
+  kind: state
+  data:
+    mode: logic
+    fields:
+    - slot: 0
+      label: interaction_counter
+      type: u64
+    - slot: 1
+      label: interactions
+      type: map[string]class.InteractionRecord
+    - slot: 2
+      label: interaction_ids
+      type: '[]string'
+- ptr: 15
+  deps:
+  - 12
+  - 13
+  kind: state
+  data:
+    mode: actor
+    fields:
+    - slot: 0
+      label: agent_id
+      type: string
+    - slot: 1
+      label: agent_interactions
+      type: '[]string'
+    - slot: 2
+      label: stats
+      type: class.AgentInteractionStats
+    - slot: 3
+      label: counterparties
+      type: map[string]bool
+- ptr: 16
+  deps:
+  - 14
+  kind: callable
+  data:
+    name: Deploy
+    mode: dynamic
+    kind: deploy
+    accepts: []
+    returns: []
+    executes:
+      asm:
+      - LLOAD $0 &0
+      - PMAKE $1 &5
+      - DISPER $0 $1
+      - STORE $0
+    catches: []
+- ptr: 17
+  deps:
+  - 15
+  kind: callable
+  data:
+    name: Enlist
+    mode: dynamic
+    kind: enlist
+    accepts:
+    - slot: 0
+      label: sageo_id
+      type: string
+    returns: []
+    executes:
+      asm:
+      - ORIGIN $0
+      - ALOAD $1 $0 &0
+      - OBTAIN $2 &0
+      - DISPER $1 $2
+      - STORE $1
+    catches: []
+- ptr: 18
+  deps:
+  - 0
+  - 1
+  - 2
+  - 3
+  - 15
+  - 14
+  kind: callable
+  data:
+    name: LogRequest
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: callee_identifier
+      type: identifier
+    - slot: 1
+      label: request_hash
+      type: string
+    - slot: 2
+      label: intent
+      type: string
+    - slot: 3
+      label: timestamp
+      type: u64
+    - slot: 4
+      label: a2a_context_id
+      type: string
+    - slot: 5
+      label: a2a_task_id
+      type: string
+    - slot: 6
+      label: a2a_message_id
+      type: string
+    - slot: 7
+      label: end_user_id
+      type: string
+    - slot: 8
+      label: end_user_session_id
+      type: string
+    returns:
+    - slot: 0
+      label: interaction_id
+      type: string
+    executes:
+      asm:
+      - PMAKE $0 &3
+      - ORIGIN $1
+      - ALOAD $2 $1 &0
+      - GATHER $3 $2
+      - LDPTR1 $4 0x0
+      - LMAKE $4 $4
+      - EQ $4 $3 $4
+      - NOT $4 $4
+      - LDPTR1 $5 0xd
+      - JUMPI $5 $4
+      - LDPTR1 $4 0x1
+      - LMAKE $4 $4
+      - THROW $4
+      - DEST
+      - COPY $0 $3
+      - DUMP $2
+      - PMAKE $1 &3
+      - OBTAIN $3 &0
+      - ALOAD $2 $3 &0
+      - GATHER $4 $2
+      - LDPTR1 $5 0x0
+      - LMAKE $5 $5
+      - EQ $5 $4 $5
+      - NOT $5 $5
+      - LDPTR1 $6 0x1d
+      - JUMPI $6 $5
+      - LDPTR1 $5 0x2
+      - LMAKE $5 $5
+      - THROW $5
+      - DEST
+      - COPY $1 $4
+      - DUMP $2
+      - PMAKE $2 &3
+      - LLOAD $3 &0
+      - GATHER $4 $3
+      - INCR $4
+      - LDPTR1 $5 0x3
+      - LMAKE $5 $5
+      - STR $6 $4
+      - JOIN $5 $5 $6
+      - COPY $2 $5
+      - DISPER $3 $4
+      - STORE $3
+      - LDPTR1 $3 0xc
+      - MAKE $3 $3
+      - GETFLD $4 $3 &0
+      - COPY $4 $2
+      - SETFLD $3 &0 $4
+      - GETFLD $4 $3 &1
+      - COPY $4 $0
+      - SETFLD $3 &1 $4
+      - GETFLD $4 $3 &2
+      - COPY $4 $1
+      - SETFLD $3 &2 $4
+      - GETFLD $4 $3 &3
+      - OBTAIN $5 &1
+      - COPY $4 $5
+      - SETFLD $3 &3 $4
+      - GETFLD $4 $3 &4
+      - LDPTR1 $5 0x0
+      - LMAKE $5 $5
+      - COPY $4 $5
+      - SETFLD $3 &4 $4
+      - GETFLD $4 $3 &5
+      - OBTAIN $5 &2
+      - COPY $4 $5
+      - SETFLD $3 &5 $4
+      - GETFLD $4 $3 &6
+      - PMAKE $5 &6
+      - DECR $5
+      - COPY $4 $5
+      - SETFLD $3 &6 $4
+      - GETFLD $4 $3 &7
+      - OBTAIN $5 &3
+      - COPY $4 $5
+      - SETFLD $3 &7 $4
+      - GETFLD $4 $3 &8
+      - OBTAIN $6 &4
+      - COPY $4 $6
+      - SETFLD $3 &8 $4
+      - GETFLD $4 $3 &9
+      - OBTAIN $6 &5
+      - COPY $4 $6
+      - SETFLD $3 &9 $4
+      - GETFLD $4 $3 &a
+      - OBTAIN $6 &6
+      - COPY $4 $6
+      - SETFLD $3 &a $4
+      - GETFLD $4 $3 &b
+      - OBTAIN $6 &7
+      - COPY $4 $6
+      - SETFLD $3 &b $4
+      - GETFLD $4 $3 &c
+      - OBTAIN $6 &8
+      - COPY $4 $6
+      - SETFLD $3 &c $4
+      - LLOAD $4 &1
+      - GENKEY $6 $4 $2
+      - GENKEY $6 $4 $2
+      - DISPER $6 $3
+      - SETKEY $4 $2 $6
+      - STORE $4
+      - LLOAD $3 &2
+      - APPEND $3 $2
+      - STORE $3
+      - ORIGIN $3
+      - ALOAD $4 $3 &1
+      - APPEND $4 $2
+      - STORE $4
+      - ORIGIN $3
+      - ALOAD $4 $3 &2
+      - GETFLD $6 $4 &0
+      - PMAKE $7 &5
+      - INCR $7
+      - ADD $7 $6 $7
+      - DISPER $6 $7
+      - SETFLD $4 &0 $6
+      - GETFLD $6 $4 &5
+      - DISPER $6 $5
+      - SETFLD $4 &5 $6
+      - STORE $4
+      - ORIGIN $3
+      - ALOAD $4 $3 &3
+      - GETKEY $6 $4 $1
+      - LDPTR1 $7 0x8b
+      - JUMPI $7 $6
+      - PMAKE $6 &1
+      - NOT $6 $6
+      - GENKEY $7 $4 $1
+      - SETKEY $4 $1 $6
+      - ORIGIN $1
+      - ALOAD $6 $1 &2
+      - GETFLD $7 $6 &4
+      - PMAKE $8 &5
+      - INCR $8
+      - ADD $8 $7 $8
+      - DISPER $7 $8
+      - SETFLD $6 &4 $7
+      - STORE $6
+      - DEST
+      - STORE $4
+      - OBTAIN $1 &0
+      - ALOAD $3 $1 &1
+      - APPEND $3 $2
+      - STORE $3
+      - OBTAIN $1 &0
+      - ALOAD $3 $1 &2
+      - GETFLD $4 $3 &1
+      - PMAKE $6 &5
+      - INCR $6
+      - ADD $6 $4 $6
+      - DISPER $4 $6
+      - SETFLD $3 &1 $4
+      - GETFLD $4 $3 &5
+      - DISPER $4 $5
+      - SETFLD $3 &5 $4
+      - STORE $3
+      - OBTAIN $1 &0
+      - ALOAD $3 $1 &3
+      - GETKEY $4 $3 $0
+      - LDPTR1 $5 0xae
+      - JUMPI $5 $4
+      - PMAKE $4 &1
+      - NOT $4 $4
+      - GENKEY $5 $3 $0
+      - SETKEY $3 $0 $4
+      - ALOAD $0 $1 &2
+      - GETFLD $4 $0 &4
+      - PMAKE $5 &5
+      - INCR $5
+      - ADD $5 $4 $5
+      - DISPER $4 $5
+      - SETFLD $0 &4 $4
+      - STORE $0
+      - DEST
+      - STORE $3
+      - YIELD $2 &0
+    catches: []
+- ptr: 19
+  deps:
+  - 0
+  - 4
+  - 5
+  - 6
+  - 12
+  - 14
+  - 15
+  kind: callable
+  data:
+    name: LogResponse
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: ix_id
+      type: string
+    - slot: 1
+      label: response_hash
+      type: string
+    - slot: 2
+      label: status_code
+      type: i64
+    - slot: 3
+      label: timestamp
+      type: u64
+    returns:
+    - slot: 0
+      label: record
+      type: class.InteractionRecord
+    executes:
+      asm:
+      - LDPTR1 $0 0xc
+      - MAKE $0 $0
+      - LDPTR1 $1 0xc
+      - MAKE $1 $1
+      - LLOAD $2 &1
+      - OBTAIN $3 &0
+      - GETKEY $4 $2 $3
+      - GETFLD $4 $4 &0
+      - LDPTR1 $5 0x0
+      - LMAKE $5 $5
+      - EQ $4 $4 $5
+      - NOT $4 $4
+      - LDPTR1 $5 0x11
+      - JUMPI $5 $4
+      - LDPTR1 $4 0x4
+      - LMAKE $4 $4
+      - THROW $4
+      - DEST
+      - GENKEY $4 $2 $3
+      - GETFLD $5 $4 &4
+      - OBTAIN $6 &1
+      - DISPER $5 $6
+      - SETFLD $4 &4 $5
+      - SETKEY $2 $3 $4
+      - GENKEY $4 $2 $3
+      - GETFLD $5 $4 &6
+      - OBTAIN $6 &2
+      - DISPER $5 $6
+      - SETFLD $4 &6 $5
+      - SETKEY $2 $3 $4
+      - GETKEY $3 $2 $3
+      - SWAP $1 $3
+      - STORE $2
+      - ORIGIN $2
+      - ALOAD $3 $2 &2
+      - GETFLD $4 $3 &2
+      - PMAKE $5 &5
+      - INCR $5
+      - ADD $5 $4 $5
+      - DISPER $4 $5
+      - SETFLD $3 &2 $4
+      - GETFLD $4 $3 &5
+      - OBTAIN $5 &3
+      - DISPER $4 $5
+      - SETFLD $3 &5 $4
+      - PMAKE $4 &1
+      - NOT $4 $4
+      - OBTAIN $5 &2
+      - LDPTR1 $6 0x5
+      - LMAKE $6 $6
+      - LT $6 $5 $6
+      - NOT $6 $6
+      - AND $4 $4 $6
+      - NOT $6 $4
+      - LDPTR1 $7 0x3c
+      - JUMPI $7 $6
+      - LDPTR1 $6 0x6
+      - LMAKE $6 $6
+      - LT $5 $5 $6
+      - AND $4 $4 $5
+      - DEST
+      - NOT $4 $4
+      - LDPTR1 $5 0x46
+      - JUMPI $5 $4
+      - GETFLD $4 $3 &3
+      - PMAKE $5 &5
+      - INCR $5
+      - ADD $5 $4 $5
+      - DISPER $4 $5
+      - SETFLD $3 &3 $4
+      - DEST
+      - STORE $3
+      - GATHER $1 $1
+      - YIELD $1 &0
+      - YIELD $0 &0
+    catches: []
+- ptr: 20
+  deps:
+  - 0
+  - 12
+  - 14
+  kind: callable
+  data:
+    name: GetInteraction
+    mode: static
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: ix_id
+      type: string
+    returns:
+    - slot: 0
+      label: record
+      type: class.InteractionRecord
+    - slot: 1
+      label: found
+      type: bool
+    executes:
+      asm:
+      - LDPTR1 $0 0xc
+      - MAKE $0 $0
+      - LDPTR1 $1 0xc
+      - MAKE $1 $1
+      - LLOAD $3 &1
+      - OBTAIN $4 &0
+      - GETKEY $1 $3 $4
+      - GETFLD $4 $1 &0
+      - LDPTR1 $5 0x0
+      - LMAKE $5 $5
+      - EQ $4 $4 $5
+      - NOT $2 $4
+      - DUMP $3
+      - GATHER $1 $1
+      - YIELD $1 &0
+      - YIELD $2 &1
+      - YIELD $0 &0
+    catches: []
+- ptr: 21
+  deps:
+  - 7
+  - 9
+  - 11
+  - 12
+  - 15
+  - 14
+  kind: callable
+  data:
+    name: ListInteractionsByAgent
+    mode: static
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: agent_identifier
+      type: identifier
+    - slot: 1
+      label: limit
+      type: u64
+    - slot: 2
+      label: offset
+      type: u64
+    returns:
+    - slot: 0
+      label: records
+      type: '[]class.InteractionRecord'
+    - slot: 1
+      label: total
+      type: u64
+    executes:
+      asm:
+      - LDPTR1 $0 0x7
+      - MAKE $0 $0
+      - PMAKE $1 &5
+      - LDPTR1 $2 0x7
+      - VMAKE $1 $2 $1
+      - PMAKE $2 &5
+      - PMAKE $3 &5
+      - LDPTR1 $4 0x9
+      - VMAKE $3 $4 $3
+      - OBTAIN $4 &0
+      - ALOAD $5 $4 &1
+      - SWAP $3 $5
+      - SIZE $6 $3
+      - COPY $2 $6
+      - DUMP $5
+      - OBTAIN $4 &2
+      - LT $5 $4 $2
+      - LDPTR1 $6 0x17
+      - JUMPI $6 $5
+      - COPY $0 $1
+      - YIELD $2 &1
+      - YIELD $0 &0
+      - TERM
+      - DEST
+      - SUB $5 $2 $4
+      - OBTAIN $6 &1
+      - GT $7 $5 $6
+      - NOT $7 $7
+      - LDPTR1 $8 0x1f
+      - JUMPI $8 $7
+      - COPY $5 $6
+      - DEST
+      - LLOAD $7 &1
+      - COPY $8 $5
+      - LDPTR1 $9 0xb
+      - MAKE $9 $9
+      - PMAKE $a &5
+      - PMAKE $b &5
+      - DEST
+      - EQ $c $8 $b
+      - LDPTR1 $d 0x2f
+      - JUMPI $d $c
+      - APPEND $9 $a
+      - INCR $a
+      - DECR $8
+      - LDPTR1 $d 0x26
+      - JUMP $d
+      - DEST
+      - PMAKE $8 &5
+      - SIZE $a $9
+      - DEST
+      - LT $b $8 $a
+      - NOT $b $b
+      - LDPTR1 $c 0x43
+      - JUMPI $c $b
+      - SUB $b $2 $4
+      - PMAKE $d &5
+      - INCR $d
+      - SUB $b $b $d
+      - SUB $b $b $8
+      - GETIDX $b $3 $b
+      - GETKEY $b $7 $b
+      - APPEND $1 $b
+      - DEST
+      - INCR $8
+      - LDPTR1 $c 0x32
+      - JUMP $c
+      - DEST
+      - DUMP $7
+      - COPY $0 $1
+      - YIELD $2 &1
+      - YIELD $0 &0
+    catches: []
+- ptr: 22
+  deps:
+  - 0
+  - 13
+  - 15
+  kind: callable
+  data:
+    name: GetAgentInteractionStats
+    mode: static
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: agent_identifier
+      type: identifier
+    returns:
+    - slot: 0
+      label: stats
+      type: class.AgentInteractionStats
+    - slot: 1
+      label: found
+      type: bool
+    executes:
+      asm:
+      - LDPTR1 $0 0xd
+      - MAKE $0 $0
+      - LDPTR1 $1 0xd
+      - MAKE $1 $1
+      - PMAKE $2 &1
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &0
+      - GATHER $5 $4
+      - LDPTR1 $6 0x0
+      - LMAKE $6 $6
+      - EQ $5 $5 $6
+      - NOT $5 $5
+      - COPY $2 $5
+      - DUMP $4
+      - NOT $3 $2
+      - LDPTR1 $4 0x15
+      - JUMPI $4 $3
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &2
+      - SWAP $1 $4
+      - DUMP $4
+      - DEST
+      - GATHER $1 $1
+      - YIELD $1 &0
+      - YIELD $2 &1
+      - YIELD $0 &0
+    catches: []
