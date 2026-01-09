@@ -236,6 +236,8 @@ On-chain proof of an agent-to-agent interaction. The `end_user_*` fields are pop
 
 MOI Logic for agent identity management. Handles registration, profile updates, and status changes. Deployed as a Coco logic on MOI blockchain.
 
+**Design Note:** Complex query operations (listing, searching, filtering) are intentionally NOT implemented in the contract. The contract provides simple read operations, and the SageoExplorer backend server handles all complex queries by fetching raw data and processing in memory. This keeps the contract simple and avoids Cocolang iteration limitations.
+
 ### `register_agent`
 
 ```typescript
@@ -250,6 +252,26 @@ Registers a new agent on Sageo using its A2A AgentCard.
 
 **Output:**
 - The newly created agent profile with assigned `sageo_id`
+
+---
+
+### `add_skill`
+
+```typescript
+add_skill(
+    sageo_id: string,
+    skill: AgentSkill
+): boolean
+```
+
+Adds a skill to an agent (owner-only operation).
+
+**Input:**
+- `sageo_id` - Sageo ID of the agent
+- `skill` - The skill to add
+
+**Output:**
+- `true` if successful
 
 ---
 
@@ -275,7 +297,7 @@ Retrieves an agent profile by its Sageo ID.
 get_agent_by_url(url: string): AgentProfile | null
 ```
 
-Retrieves an agent profile by its A2A endpoint URL.
+Retrieves an agent profile by its A2A endpoint URL. Iterates through all agents to find a match.
 
 **Input:**
 - `url` - Agent's A2A endpoint URL
@@ -285,10 +307,36 @@ Retrieves an agent profile by its A2A endpoint URL.
 
 ---
 
+### `get_all_agent_ids`
+
+```typescript
+get_all_agent_ids(): string[]
+```
+
+Returns all registered agent IDs. Used by the backend server to fetch the full agent list for filtering/searching.
+
+**Output:**
+- Array of all sageo_id strings
+
+---
+
+### `get_agent_count`
+
+```typescript
+get_agent_count(): number
+```
+
+Returns the total number of registered agents.
+
+**Output:**
+- Count of registered agents
+
+---
+
 ### `update_agent_card`
 
 ```typescript
-update_agent_card(sageo_id: string, agent_card: AgentCard): AgentProfile
+update_agent_card(sageo_id: string, agent_card: AgentCard): boolean
 ```
 
 Updates an agent's full AgentCard metadata (owner-only operation). Called by the frontend agent manager. Ownership is verified by checking that the transaction sender matches the agent's owner.
@@ -298,7 +346,7 @@ Updates an agent's full AgentCard metadata (owner-only operation). Called by the
 - `agent_card` - Updated A2A AgentCard
 
 **Output:**
-- The updated agent profile
+- `true` if successful (call `get_agent_by_id` to fetch updated profile)
 
 ---
 
@@ -308,77 +356,17 @@ Updates an agent's full AgentCard metadata (owner-only operation). Called by the
 set_agent_status(
     sageo_id: string,
     status: AgentStatus
-): AgentProfile
+): boolean
 ```
 
 Updates an agent's operational status (owner-only). Called by the frontend agent manager. Ownership is verified by checking that the transaction sender matches the agent's owner.
 
 **Input:**
 - `sageo_id` - Sageo ID of the agent
-- `status` - New status (ACTIVE, PAUSED, or COMPROMISED)
+- `status` - New status (ACTIVE, PAUSED, or DEPRECATED)
 
 **Output:**
-- The updated agent profile
-
----
-
-### `list_agents`
-
-```typescript
-list_agents(
-    tags?: string[],
-    status?: AgentStatus,
-    capabilities?: Record<string, boolean>,
-    limit?: number,  // default: 50, max: 100
-    offset?: number  // default: 0
-): AgentProfile[]
-```
-
-Lists registered agents with optional filtering.
-
-**Input:**
-- `tags` - Filter by agents having skills with ALL these tags
-- `status` - Filter by Sageo status (default: all statuses)
-- `capabilities` - Filter by capabilities (e.g., `{"streaming": true}`)
-- `limit` - Maximum number of results (default: 50, max: 100)
-- `offset` - Pagination offset (default: 0)
-
-**Output:**
-- List of matching agent profiles
-
----
-
-### `search_agents`
-
-```typescript
-search_agents(query: string, limit?: number): AgentProfile[]
-```
-
-Searches agents by name, description, or skill tags using substring matching (case-insensitive). For fuzzy matching and advanced ranking, use the client-side `SageoExplorer.search_agents` method.
-
-**Input:**
-- `query` - Search query string
-- `limit` - Maximum results to return (default: 20)
-
-**Output:**
-- List of matching agents (simple substring match, not ranked)
-
----
-
-### `get_agents_by_skill`
-
-```typescript
-get_agents_by_skill(skill_id: string, limit?: number): AgentProfile[]
-```
-
-Finds agents that have a specific skill.
-
-**Input:**
-- `skill_id` - The skill ID to search for
-- `limit` - Maximum results (default: 50)
-
-**Output:**
-- List of agents with the specified skill
+- `true` if successful (call `get_agent_by_id` to fetch updated profile)
 
 ---
 
@@ -861,11 +849,17 @@ const sageoHandler = new SageoRequestHandler(underlyingHandler, sageoClient);
 
 REST API server that the frontend connects to for querying the Sageo network. Provides read-only endpoints for agent discovery and interaction viewing. Connects to MOI blockchain via RPC.
 
+**Architecture Note:** The backend handles all complex query operations (listing, searching, filtering, pagination). It fetches raw data from the contract using simple read endpoints (`GetAllAgentIds`, `GetAgentById`) and processes results in memory. This allows for:
+- Fuzzy text search and relevance ranking
+- Complex multi-field filtering
+- Efficient pagination without contract iteration bugs
+- Caching for performance
+
 ---
 
 ### `GET /agents`
 
-Lists registered agents with optional filtering.
+Lists registered agents with optional filtering. **Handled by backend server** - fetches all agents from contract and filters in memory.
 
 **Query Parameters:**
 - `tags` - Comma-separated skill tags to filter by
@@ -880,7 +874,7 @@ Lists registered agents with optional filtering.
 
 ### `GET /agents/search`
 
-Searches for agents by name, description, or tags using fuzzy matching and ranking.
+Searches for agents by name, description, or tags using fuzzy matching and ranking. **Handled by backend server** with in-memory search index.
 
 **Query Parameters:**
 - `q` - Search query (required)
@@ -892,7 +886,7 @@ Searches for agents by name, description, or tags using fuzzy matching and ranki
 
 ### `GET /agents/by-skill/:skill_id`
 
-Finds agents that have a specific skill.
+Finds agents that have a specific skill. **Handled by backend server** - filters cached agent list by skill.
 
 **Path Parameters:**
 - `skill_id` - The skill ID to search for

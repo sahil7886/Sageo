@@ -1,0 +1,1478 @@
+syntax: 1
+engine:
+  kind: PISA
+  flags: []
+  version: 0.6.0
+kind: logic
+elements:
+- ptr: 0
+  kind: literal
+  data:
+    type: string
+    value: '0x066167656e745f'
+- ptr: 1
+  kind: literal
+  data:
+    type: string
+    value: '0x0673656e646572'
+- ptr: 2
+  kind: literal
+  data:
+    type: string
+    value: '0x06414354495645'
+- ptr: 3
+  kind: literal
+  data:
+    type: string
+    value: '0x064e6f74206167656e74206f776e6572'
+- ptr: 4
+  kind: literal
+  data:
+    type: string
+    value: '0x06'
+- ptr: 5
+  kind: literal
+  data:
+    type: string
+    value: '0x064167656e74206e6f7420666f756e64'
+- ptr: 6
+  kind: literal
+  data:
+    type: string
+    value: '0x06504155534544'
+- ptr: 7
+  kind: literal
+  data:
+    type: string
+    value: '0x0644455052454341544544'
+- ptr: 8
+  kind: literal
+  data:
+    type: string
+    value: '0x06496e76616c696420737461747573'
+- ptr: 9
+  kind: typedef
+  data: '[]string'
+- ptr: 10
+  deps:
+  - 15
+  kind: typedef
+  data: map[string]class.AgentProfile
+- ptr: 11
+  kind: typedef
+  data: '[]u64'
+- ptr: 12
+  deps:
+  - 13
+  kind: typedef
+  data: '[]class.AgentSkill'
+- ptr: 13
+  kind: class
+  data:
+    name: AgentSkill
+    fields:
+    - slot: 0
+      label: id
+      type: string
+    - slot: 1
+      label: name
+      type: string
+    - slot: 2
+      label: description
+      type: string
+    - slot: 3
+      label: tags
+      type: string
+    - slot: 4
+      label: examples
+      type: string
+    methods: []
+- ptr: 14
+  kind: class
+  data:
+    name: AgentCard
+    fields:
+    - slot: 0
+      label: name
+      type: string
+    - slot: 1
+      label: description
+      type: string
+    - slot: 2
+      label: version
+      type: string
+    - slot: 3
+      label: url
+      type: string
+    - slot: 4
+      label: protocol_version
+      type: string
+    - slot: 5
+      label: icon_url
+      type: string
+    - slot: 6
+      label: documentation_url
+      type: string
+    - slot: 7
+      label: preferred_transport
+      type: string
+    - slot: 8
+      label: default_input_modes
+      type: string
+    - slot: 9
+      label: default_output_modes
+      type: string
+    - slot: 10
+      label: streaming
+      type: bool
+    - slot: 11
+      label: push_notifications
+      type: bool
+    methods: []
+- ptr: 15
+  deps:
+  - 14
+  - 13
+  kind: class
+  data:
+    name: AgentProfile
+    fields:
+    - slot: 0
+      label: sageo_id
+      type: string
+    - slot: 1
+      label: owner
+      type: string
+    - slot: 2
+      label: status
+      type: string
+    - slot: 3
+      label: created_at
+      type: u64
+    - slot: 4
+      label: updated_at
+      type: u64
+    - slot: 5
+      label: agent_card
+      type: class.AgentCard
+    - slot: 6
+      label: skills
+      type: '[]class.AgentSkill'
+    methods: []
+- ptr: 16
+  deps:
+  - 15
+  kind: state
+  data:
+    mode: logic
+    fields:
+    - slot: 0
+      label: agent_counter
+      type: u64
+    - slot: 1
+      label: agents
+      type: map[string]class.AgentProfile
+    - slot: 2
+      label: agent_ids
+      type: '[]string'
+- ptr: 17
+  deps:
+  - 15
+  kind: state
+  data:
+    mode: actor
+    fields:
+    - slot: 0
+      label: owned_agents
+      type: '[]string'
+    - slot: 1
+      label: is_enlisted
+      type: bool
+- ptr: 18
+  deps:
+  - 16
+  kind: callable
+  data:
+    name: Deploy
+    mode: dynamic
+    kind: deploy
+    accepts: []
+    returns: []
+    executes:
+      asm:
+      - LLOAD $0 &0
+      - PMAKE $1 &5
+      - DISPER $0 $1
+      - STORE $0
+    catches: []
+- ptr: 19
+  deps:
+  - 17
+  kind: callable
+  data:
+    name: Enlist
+    mode: dynamic
+    kind: enlist
+    accepts: []
+    returns: []
+    executes:
+      asm:
+      - ORIGIN $0
+      - ALOAD $1 $0 &1
+      - PMAKE $2 &1
+      - NOT $2 $2
+      - DISPER $1 $2
+      - STORE $1
+    catches: []
+- ptr: 20
+  deps:
+  - 0
+  - 1
+  - 2
+  - 15
+  - 16
+  - 17
+  kind: callable
+  data:
+    name: RegisterAgent
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: name
+      type: string
+    - slot: 1
+      label: description
+      type: string
+    - slot: 2
+      label: version
+      type: string
+    - slot: 3
+      label: url
+      type: string
+    - slot: 4
+      label: protocol_version
+      type: string
+    - slot: 5
+      label: icon_url
+      type: string
+    - slot: 6
+      label: documentation_url
+      type: string
+    - slot: 7
+      label: preferred_transport
+      type: string
+    - slot: 8
+      label: default_input_modes
+      type: string
+    - slot: 9
+      label: default_output_modes
+      type: string
+    - slot: 10
+      label: streaming
+      type: bool
+    - slot: 11
+      label: push_notifications
+      type: bool
+    returns:
+    - slot: 0
+      label: sageo_id
+      type: string
+    - slot: 1
+      label: profile
+      type: class.AgentProfile
+    executes:
+      asm:
+      - LDPTR1 $0 0xf
+      - MAKE $0 $0
+      - LLOAD $2 &0
+      - GATHER $3 $2
+      - INCR $3
+      - LDPTR1 $4 0x0
+      - LMAKE $4 $4
+      - STR $5 $3
+      - JOIN $1 $4 $5
+      - DISPER $2 $3
+      - STORE $2
+      - LLOAD $2 &0
+      - GATHER $3 $2
+      - DUMP $2
+      - LDPTR1 $2 0xe
+      - MAKE $2 $2
+      - OBTAIN $4 &0
+      - SETFLD $2 &0 $4
+      - OBTAIN $4 &1
+      - SETFLD $2 &1 $4
+      - OBTAIN $4 &2
+      - SETFLD $2 &2 $4
+      - OBTAIN $4 &3
+      - SETFLD $2 &3 $4
+      - OBTAIN $4 &4
+      - SETFLD $2 &4 $4
+      - OBTAIN $4 &5
+      - SETFLD $2 &5 $4
+      - OBTAIN $4 &6
+      - SETFLD $2 &6 $4
+      - OBTAIN $4 &7
+      - SETFLD $2 &7 $4
+      - OBTAIN $4 &8
+      - SETFLD $2 &8 $4
+      - OBTAIN $4 &9
+      - SETFLD $2 &9 $4
+      - OBTAIN $4 &a
+      - SETFLD $2 &a $4
+      - OBTAIN $4 &b
+      - SETFLD $2 &b $4
+      - LDPTR1 $4 0xf
+      - MAKE $4 $4
+      - COPY $5 $1
+      - SETFLD $4 &0 $5
+      - LDPTR1 $6 0x1
+      - LMAKE $5 $6
+      - SETFLD $4 &1 $5
+      - LDPTR1 $6 0x2
+      - LMAKE $5 $6
+      - SETFLD $4 &2 $5
+      - COPY $5 $3
+      - SETFLD $4 &3 $5
+      - COPY $5 $3
+      - SETFLD $4 &4 $5
+      - COPY $3 $2
+      - SETFLD $4 &5 $3
+      - LLOAD $2 &1
+      - GENKEY $3 $2 $1
+      - DISPER $3 $4
+      - SETKEY $2 $1 $3
+      - STORE $2
+      - LLOAD $2 &2
+      - APPEND $2 $1
+      - STORE $2
+      - ORIGIN $2
+      - ALOAD $3 $2 &0
+      - APPEND $3 $1
+      - STORE $3
+      - YIELD $1 &0
+      - COPY $0 $4
+      - YIELD $0 &1
+    catches: []
+- ptr: 21
+  deps:
+  - 3
+  - 11
+  - 17
+  - 16
+  kind: callable
+  data:
+    name: AddSkill
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: sageo_id
+      type: string
+    - slot: 1
+      label: skill_id
+      type: string
+    - slot: 2
+      label: skill_name
+      type: string
+    - slot: 3
+      label: skill_description
+      type: string
+    - slot: 4
+      label: skill_tags
+      type: string
+    - slot: 5
+      label: skill_examples
+      type: string
+    returns:
+    - slot: 0
+      label: success
+      type: bool
+    executes:
+      asm:
+      - PMAKE $0 &1
+      - ORIGIN $1
+      - ALOAD $2 $1 &0
+      - SIZE $3 $2
+      - LDPTR1 $4 0xb
+      - MAKE $4 $4
+      - PMAKE $5 &5
+      - PMAKE $6 &5
+      - DEST
+      - EQ $7 $3 $6
+      - LDPTR1 $8 0x11
+      - JUMPI $8 $7
+      - APPEND $4 $5
+      - INCR $5
+      - DECR $3
+      - LDPTR1 $8 0x8
+      - JUMP $8
+      - DEST
+      - PMAKE $3 &5
+      - SIZE $5 $4
+      - DEST
+      - LT $6 $3 $5
+      - NOT $6 $6
+      - LDPTR1 $7 0x27
+      - JUMPI $7 $6
+      - GETIDX $6 $2 $3
+      - OBTAIN $8 &0
+      - EQ $6 $6 $8
+      - NOT $6 $6
+      - LDPTR1 $8 0x22
+      - JUMPI $8 $6
+      - PMAKE $6 &1
+      - NOT $6 $6
+      - COPY $0 $6
+      - DEST
+      - DEST
+      - INCR $3
+      - LDPTR1 $7 0x14
+      - JUMP $7
+      - DEST
+      - DUMP $2
+      - LDPTR1 $1 0x2e
+      - JUMPI $1 $0
+      - LDPTR1 $0 0x3
+      - LMAKE $0 $0
+      - THROW $0
+      - DEST
+      - LDPTR1 $0 0xd
+      - MAKE $0 $0
+      - GETFLD $1 $0 &0
+      - OBTAIN $2 &1
+      - COPY $1 $2
+      - SETFLD $0 &0 $1
+      - GETFLD $1 $0 &1
+      - OBTAIN $2 &2
+      - COPY $1 $2
+      - SETFLD $0 &1 $1
+      - GETFLD $1 $0 &2
+      - OBTAIN $2 &3
+      - COPY $1 $2
+      - SETFLD $0 &2 $1
+      - GETFLD $1 $0 &3
+      - OBTAIN $2 &4
+      - COPY $1 $2
+      - SETFLD $0 &3 $1
+      - GETFLD $1 $0 &4
+      - OBTAIN $2 &5
+      - COPY $1 $2
+      - SETFLD $0 &4 $1
+      - LLOAD $1 &1
+      - OBTAIN $2 &0
+      - GETKEY $3 $1 $2
+      - GETFLD $4 $3 &6
+      - SIZE $5 $4
+      - GROW $4
+      - GETIDX $6 $4 $5
+      - DISPER $6 $0
+      - SETIDX $4 $5 $6
+      - SETFLD $3 &6 $4
+      - SETKEY $1 $2 $3
+      - STORE $1
+      - PMAKE $0 &1
+      - NOT $0 $0
+      - YIELD $0 &0
+    catches: []
+- ptr: 22
+  deps:
+  - 4
+  - 12
+  - 11
+  - 15
+  - 16
+  kind: callable
+  data:
+    name: GetAgentById
+    mode: static
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: sageo_id
+      type: string
+    returns:
+    - slot: 0
+      label: profile
+      type: class.AgentProfile
+    - slot: 1
+      label: found
+      type: bool
+    executes:
+      asm:
+      - LDPTR1 $0 0xf
+      - MAKE $0 $0
+      - LDPTR1 $1 0xf
+      - MAKE $1 $1
+      - PMAKE $2 &1
+      - LLOAD $3 &1
+      - OBTAIN $4 &0
+      - GETKEY $5 $3 $4
+      - GETFLD $5 $5 &0
+      - LDPTR1 $6 0x4
+      - LMAKE $6 $6
+      - EQ $5 $5 $6
+      - NOT $5 $5
+      - COPY $2 $5
+      - NOT $5 $2
+      - LDPTR1 $6 0xc0
+      - JUMPI $6 $5
+      - LDPTR1 $5 0xe
+      - MAKE $5 $5
+      - PMAKE $6 &5
+      - LDPTR1 $7 0xc
+      - VMAKE $6 $7 $6
+      - GETFLD $7 $5 &0
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &0
+      - GATHER $7 $8
+      - SETFLD $5 &0 $7
+      - GETFLD $7 $5 &1
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &1
+      - GATHER $7 $8
+      - SETFLD $5 &1 $7
+      - GETFLD $7 $5 &2
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &2
+      - GATHER $7 $8
+      - SETFLD $5 &2 $7
+      - GETFLD $7 $5 &3
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &3
+      - GATHER $7 $8
+      - SETFLD $5 &3 $7
+      - GETFLD $7 $5 &4
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &4
+      - GATHER $7 $8
+      - SETFLD $5 &4 $7
+      - GETFLD $7 $5 &5
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &5
+      - GATHER $7 $8
+      - SETFLD $5 &5 $7
+      - GETFLD $7 $5 &6
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &6
+      - GATHER $7 $8
+      - SETFLD $5 &6 $7
+      - GETFLD $7 $5 &7
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &7
+      - GATHER $7 $8
+      - SETFLD $5 &7 $7
+      - GETFLD $7 $5 &8
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &8
+      - GATHER $7 $8
+      - SETFLD $5 &8 $7
+      - GETFLD $7 $5 &9
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &9
+      - GATHER $7 $8
+      - SETFLD $5 &9 $7
+      - GETFLD $7 $5 &a
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &a
+      - GATHER $7 $8
+      - SETFLD $5 &a $7
+      - GETFLD $7 $5 &b
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &b
+      - GATHER $7 $8
+      - SETFLD $5 &b $7
+      - GETKEY $7 $3 $4
+      - GETFLD $7 $7 &6
+      - SIZE $7 $7
+      - LDPTR1 $8 0xb
+      - MAKE $8 $8
+      - PMAKE $9 &5
+      - PMAKE $a &5
+      - DEST
+      - EQ $b $7 $a
+      - LDPTR1 $c 0x6e
+      - JUMPI $c $b
+      - APPEND $8 $9
+      - INCR $9
+      - DECR $7
+      - LDPTR1 $c 0x65
+      - JUMP $c
+      - DEST
+      - PMAKE $7 &5
+      - SIZE $9 $8
+      - DEST
+      - LT $a $7 $9
+      - NOT $a $a
+      - LDPTR1 $b 0xa0
+      - JUMPI $b $a
+      - LDPTR1 $a 0xd
+      - MAKE $a $a
+      - GETFLD $c $a &0
+      - GETKEY $d $3 $4
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &0
+      - GATHER $c $d
+      - SETFLD $a &0 $c
+      - GETFLD $c $a &1
+      - GETKEY $d $3 $4
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &1
+      - GATHER $c $d
+      - SETFLD $a &1 $c
+      - GETFLD $c $a &2
+      - GETKEY $d $3 $4
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &2
+      - GATHER $c $d
+      - SETFLD $a &2 $c
+      - GETFLD $c $a &3
+      - GETKEY $d $3 $4
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &3
+      - GATHER $c $d
+      - SETFLD $a &3 $c
+      - GETFLD $c $a &4
+      - GETKEY $d $3 $4
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &4
+      - GATHER $c $d
+      - SETFLD $a &4 $c
+      - APPEND $6 $a
+      - DEST
+      - INCR $7
+      - LDPTR1 $b 0x71
+      - JUMP $b
+      - DEST
+      - GETFLD $7 $1 &0
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &0
+      - GATHER $7 $8
+      - SETFLD $1 &0 $7
+      - GETFLD $7 $1 &1
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &1
+      - GATHER $7 $8
+      - SETFLD $1 &1 $7
+      - GETFLD $7 $1 &2
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &2
+      - GATHER $7 $8
+      - SETFLD $1 &2 $7
+      - GETFLD $7 $1 &3
+      - GETKEY $8 $3 $4
+      - GETFLD $8 $8 &3
+      - GATHER $7 $8
+      - SETFLD $1 &3 $7
+      - GETFLD $7 $1 &4
+      - GETKEY $4 $3 $4
+      - GETFLD $4 $4 &4
+      - GATHER $7 $4
+      - SETFLD $1 &4 $7
+      - GETFLD $4 $1 &5
+      - COPY $4 $5
+      - SETFLD $1 &5 $4
+      - GETFLD $4 $1 &6
+      - COPY $4 $6
+      - SETFLD $1 &6 $4
+      - DEST
+      - DUMP $3
+      - COPY $0 $1
+      - YIELD $2 &1
+      - YIELD $0 &0
+    catches: []
+- ptr: 23
+  deps:
+  - 4
+  - 9
+  - 11
+  - 12
+  - 15
+  - 16
+  kind: callable
+  data:
+    name: GetAgentByUrl
+    mode: static
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: url
+      type: string
+    returns:
+    - slot: 0
+      label: profile
+      type: class.AgentProfile
+    - slot: 1
+      label: found
+      type: bool
+    executes:
+      asm:
+      - LDPTR1 $0 0xf
+      - MAKE $0 $0
+      - PMAKE $1 &3
+      - PMAKE $2 &5
+      - LDPTR1 $3 0x9
+      - VMAKE $2 $3 $2
+      - LLOAD $3 &2
+      - SIZE $4 $3
+      - LDPTR1 $5 0xb
+      - MAKE $5 $5
+      - PMAKE $6 &5
+      - PMAKE $7 &5
+      - DEST
+      - EQ $8 $4 $7
+      - LDPTR1 $9 0x15
+      - JUMPI $9 $8
+      - APPEND $5 $6
+      - INCR $6
+      - DECR $4
+      - LDPTR1 $9 0xc
+      - JUMP $9
+      - DEST
+      - PMAKE $4 &5
+      - SIZE $6 $5
+      - DEST
+      - LT $7 $4 $6
+      - NOT $7 $7
+      - LDPTR1 $8 0x23
+      - JUMPI $8 $7
+      - GETIDX $7 $3 $4
+      - APPEND $2 $7
+      - DEST
+      - INCR $4
+      - LDPTR1 $8 0x18
+      - JUMP $8
+      - DEST
+      - DUMP $3
+      - LLOAD $3 &1
+      - SIZE $4 $2
+      - LDPTR1 $5 0xb
+      - MAKE $5 $5
+      - PMAKE $6 &5
+      - PMAKE $7 &5
+      - DEST
+      - EQ $8 $4 $7
+      - LDPTR1 $9 0x34
+      - JUMPI $9 $8
+      - APPEND $5 $6
+      - INCR $6
+      - DECR $4
+      - LDPTR1 $9 0x2b
+      - JUMP $9
+      - DEST
+      - PMAKE $4 &5
+      - SIZE $6 $5
+      - DEST
+      - LT $7 $4 $6
+      - NOT $7 $7
+      - LDPTR1 $8 0x4c
+      - JUMPI $8 $7
+      - GETIDX $7 $2 $4
+      - GETKEY $7 $3 $7
+      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &3
+      - OBTAIN $9 &0
+      - EQ $7 $7 $9
+      - NOT $7 $7
+      - LDPTR1 $9 0x47
+      - JUMPI $9 $7
+      - GETIDX $7 $2 $4
+      - COPY $1 $7
+      - DEST
+      - DEST
+      - INCR $4
+      - LDPTR1 $8 0x37
+      - JUMP $8
+      - DEST
+      - DUMP $3
+      - LDPTR1 $3 0x4
+      - LMAKE $3 $3
+      - EQ $3 $1 $3
+      - NOT $3 $3
+      - LDPTR1 $4 0x5b
+      - JUMPI $4 $3
+      - LDPTR1 $3 0xf
+      - MAKE $3 $3
+      - COPY $0 $3
+      - PMAKE $3 &1
+      - YIELD $3 &1
+      - YIELD $0 &0
+      - TERM
+      - DEST
+      - LDPTR1 $3 0xf
+      - MAKE $3 $3
+      - LLOAD $4 &1
+      - LDPTR1 $5 0xe
+      - MAKE $5 $5
+      - PMAKE $6 &5
+      - LDPTR1 $7 0xc
+      - VMAKE $6 $7 $6
+      - GETFLD $7 $5 &0
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &0
+      - GATHER $7 $8
+      - SETFLD $5 &0 $7
+      - GETFLD $7 $5 &1
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &1
+      - GATHER $7 $8
+      - SETFLD $5 &1 $7
+      - GETFLD $7 $5 &2
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &2
+      - GATHER $7 $8
+      - SETFLD $5 &2 $7
+      - GETFLD $7 $5 &3
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &3
+      - GATHER $7 $8
+      - SETFLD $5 &3 $7
+      - GETFLD $7 $5 &4
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &4
+      - GATHER $7 $8
+      - SETFLD $5 &4 $7
+      - GETFLD $7 $5 &5
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &5
+      - GATHER $7 $8
+      - SETFLD $5 &5 $7
+      - GETFLD $7 $5 &6
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &6
+      - GATHER $7 $8
+      - SETFLD $5 &6 $7
+      - GETFLD $7 $5 &7
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &7
+      - GATHER $7 $8
+      - SETFLD $5 &7 $7
+      - GETFLD $7 $5 &8
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &8
+      - GATHER $7 $8
+      - SETFLD $5 &8 $7
+      - GETFLD $7 $5 &9
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &9
+      - GATHER $7 $8
+      - SETFLD $5 &9 $7
+      - GETFLD $7 $5 &a
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &a
+      - GATHER $7 $8
+      - SETFLD $5 &a $7
+      - GETFLD $7 $5 &b
+      - GETKEY $8 $4 $1
+      - GETFLD $8 $8 &5
+      - GETFLD $8 $8 &b
+      - GATHER $7 $8
+      - SETFLD $5 &b $7
+      - GETKEY $7 $4 $1
+      - GETFLD $7 $7 &6
+      - SIZE $7 $7
+      - LDPTR1 $8 0xb
+      - MAKE $8 $8
+      - PMAKE $9 &5
+      - PMAKE $a &5
+      - DEST
+      - EQ $b $7 $a
+      - LDPTR1 $c 0xbc
+      - JUMPI $c $b
+      - APPEND $8 $9
+      - INCR $9
+      - DECR $7
+      - LDPTR1 $c 0xb3
+      - JUMP $c
+      - DEST
+      - PMAKE $7 &5
+      - SIZE $9 $8
+      - DEST
+      - LT $a $7 $9
+      - NOT $a $a
+      - LDPTR1 $b 0xee
+      - JUMPI $b $a
+      - LDPTR1 $a 0xd
+      - MAKE $a $a
+      - GETFLD $c $a &0
+      - GETKEY $d $4 $1
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &0
+      - GATHER $c $d
+      - SETFLD $a &0 $c
+      - GETFLD $c $a &1
+      - GETKEY $d $4 $1
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &1
+      - GATHER $c $d
+      - SETFLD $a &1 $c
+      - GETFLD $c $a &2
+      - GETKEY $d $4 $1
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &2
+      - GATHER $c $d
+      - SETFLD $a &2 $c
+      - GETFLD $c $a &3
+      - GETKEY $d $4 $1
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &3
+      - GATHER $c $d
+      - SETFLD $a &3 $c
+      - GETFLD $c $a &4
+      - GETKEY $d $4 $1
+      - GETFLD $d $d &6
+      - GETIDX $d $d $7
+      - GETFLD $d $d &4
+      - GATHER $c $d
+      - SETFLD $a &4 $c
+      - APPEND $6 $a
+      - DEST
+      - INCR $7
+      - LDPTR1 $b 0xbf
+      - JUMP $b
+      - DEST
+      - GETFLD $2 $3 &0
+      - GETKEY $7 $4 $1
+      - GETFLD $7 $7 &0
+      - GATHER $2 $7
+      - SETFLD $3 &0 $2
+      - GETFLD $2 $3 &1
+      - GETKEY $7 $4 $1
+      - GETFLD $7 $7 &1
+      - GATHER $2 $7
+      - SETFLD $3 &1 $2
+      - GETFLD $2 $3 &2
+      - GETKEY $7 $4 $1
+      - GETFLD $7 $7 &2
+      - GATHER $2 $7
+      - SETFLD $3 &2 $2
+      - GETFLD $2 $3 &3
+      - GETKEY $7 $4 $1
+      - GETFLD $7 $7 &3
+      - GATHER $2 $7
+      - SETFLD $3 &3 $2
+      - GETFLD $2 $3 &4
+      - GETKEY $1 $4 $1
+      - GETFLD $1 $1 &4
+      - GATHER $2 $1
+      - SETFLD $3 &4 $2
+      - GETFLD $1 $3 &5
+      - COPY $1 $5
+      - SETFLD $3 &5 $1
+      - GETFLD $1 $3 &6
+      - COPY $1 $6
+      - SETFLD $3 &6 $1
+      - DUMP $4
+      - COPY $0 $3
+      - PMAKE $1 &1
+      - NOT $1 $1
+      - YIELD $1 &1
+      - YIELD $0 &0
+    catches: []
+- ptr: 24
+  deps:
+  - 9
+  - 11
+  - 16
+  kind: callable
+  data:
+    name: GetAllAgentIds
+    mode: static
+    kind: invoke
+    accepts: []
+    returns:
+    - slot: 0
+      label: ids
+      type: '[]string'
+    executes:
+      asm:
+      - LDPTR1 $0 0x9
+      - MAKE $0 $0
+      - PMAKE $1 &5
+      - LDPTR1 $2 0x9
+      - VMAKE $1 $2 $1
+      - LLOAD $2 &2
+      - SIZE $3 $2
+      - LDPTR1 $4 0xb
+      - MAKE $4 $4
+      - PMAKE $5 &5
+      - PMAKE $6 &5
+      - DEST
+      - EQ $7 $3 $6
+      - LDPTR1 $8 0x14
+      - JUMPI $8 $7
+      - APPEND $4 $5
+      - INCR $5
+      - DECR $3
+      - LDPTR1 $8 0xb
+      - JUMP $8
+      - DEST
+      - PMAKE $3 &5
+      - SIZE $5 $4
+      - DEST
+      - LT $6 $3 $5
+      - NOT $6 $6
+      - LDPTR1 $7 0x22
+      - JUMPI $7 $6
+      - GETIDX $6 $2 $3
+      - APPEND $1 $6
+      - DEST
+      - INCR $3
+      - LDPTR1 $7 0x17
+      - JUMP $7
+      - DEST
+      - DUMP $2
+      - COPY $0 $1
+      - YIELD $0 &0
+    catches: []
+- ptr: 25
+  deps:
+  - 16
+  kind: callable
+  data:
+    name: GetAgentCount
+    mode: static
+    kind: invoke
+    accepts: []
+    returns:
+    - slot: 0
+      label: count
+      type: u64
+    executes:
+      asm:
+      - LLOAD $0 &2
+      - SIZE $1 $0
+      - YIELD $1 &0
+      - DUMP $0
+    catches: []
+- ptr: 26
+  deps:
+  - 4
+  - 5
+  - 3
+  - 11
+  - 16
+  - 17
+  kind: callable
+  data:
+    name: UpdateAgentCard
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: sageo_id
+      type: string
+    - slot: 1
+      label: name
+      type: string
+    - slot: 2
+      label: description
+      type: string
+    - slot: 3
+      label: version
+      type: string
+    - slot: 4
+      label: url
+      type: string
+    - slot: 5
+      label: protocol_version
+      type: string
+    - slot: 6
+      label: icon_url
+      type: string
+    - slot: 7
+      label: documentation_url
+      type: string
+    - slot: 8
+      label: preferred_transport
+      type: string
+    - slot: 9
+      label: default_input_modes
+      type: string
+    - slot: 10
+      label: default_output_modes
+      type: string
+    - slot: 11
+      label: streaming
+      type: bool
+    - slot: 12
+      label: push_notifications
+      type: bool
+    returns:
+    - slot: 0
+      label: success
+      type: bool
+    executes:
+      asm:
+      - LDPTR1 $0 0xf
+      - MAKE $0 $0
+      - PMAKE $1 &1
+      - LLOAD $2 &1
+      - OBTAIN $3 &0
+      - GETKEY $3 $2 $3
+      - SWAP $0 $3
+      - GETFLD $3 $0 &0
+      - LDPTR1 $4 0x4
+      - LMAKE $4 $4
+      - EQ $3 $3 $4
+      - NOT $3 $3
+      - COPY $1 $3
+      - DUMP $2
+      - NOT $2 $1
+      - NOT $2 $2
+      - LDPTR1 $3 0x15
+      - JUMPI $3 $2
+      - LDPTR1 $2 0x5
+      - LMAKE $2 $2
+      - THROW $2
+      - DEST
+      - PMAKE $2 &1
+      - ORIGIN $3
+      - ALOAD $4 $3 &0
+      - SIZE $5 $4
+      - LDPTR1 $6 0xb
+      - MAKE $6 $6
+      - PMAKE $7 &5
+      - PMAKE $8 &5
+      - DEST
+      - EQ $9 $5 $8
+      - LDPTR1 $a 0x27
+      - JUMPI $a $9
+      - APPEND $6 $7
+      - INCR $7
+      - DECR $5
+      - LDPTR1 $a 0x1e
+      - JUMP $a
+      - DEST
+      - PMAKE $5 &5
+      - SIZE $7 $6
+      - DEST
+      - LT $8 $5 $7
+      - NOT $8 $8
+      - LDPTR1 $9 0x3d
+      - JUMPI $9 $8
+      - GETIDX $8 $4 $5
+      - OBTAIN $a &0
+      - EQ $8 $8 $a
+      - NOT $8 $8
+      - LDPTR1 $a 0x38
+      - JUMPI $a $8
+      - PMAKE $8 &1
+      - NOT $8 $8
+      - COPY $2 $8
+      - DEST
+      - DEST
+      - INCR $5
+      - LDPTR1 $9 0x2a
+      - JUMP $9
+      - DEST
+      - DUMP $4
+      - NOT $0 $2
+      - NOT $0 $0
+      - LDPTR1 $1 0x46
+      - JUMPI $1 $0
+      - LDPTR1 $0 0x3
+      - LMAKE $0 $0
+      - THROW $0
+      - DEST
+      - PMAKE $0 &5
+      - LLOAD $1 &0
+      - GATHER $2 $1
+      - COPY $0 $2
+      - DUMP $1
+      - LLOAD $1 &1
+      - OBTAIN $2 &0
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &0
+      - OBTAIN $6 &1
+      - DISPER $5 $6
+      - SETFLD $4 &0 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &1
+      - OBTAIN $6 &2
+      - DISPER $5 $6
+      - SETFLD $4 &1 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &2
+      - OBTAIN $6 &3
+      - DISPER $5 $6
+      - SETFLD $4 &2 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &3
+      - OBTAIN $6 &4
+      - DISPER $5 $6
+      - SETFLD $4 &3 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &4
+      - OBTAIN $6 &5
+      - DISPER $5 $6
+      - SETFLD $4 &4 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &5
+      - OBTAIN $6 &6
+      - DISPER $5 $6
+      - SETFLD $4 &5 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &6
+      - OBTAIN $6 &7
+      - DISPER $5 $6
+      - SETFLD $4 &6 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &7
+      - OBTAIN $6 &8
+      - DISPER $5 $6
+      - SETFLD $4 &7 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &8
+      - OBTAIN $6 &9
+      - DISPER $5 $6
+      - SETFLD $4 &8 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &9
+      - OBTAIN $6 &a
+      - DISPER $5 $6
+      - SETFLD $4 &9 $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &a
+      - OBTAIN $6 &b
+      - DISPER $5 $6
+      - SETFLD $4 &a $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &5
+      - GETFLD $5 $4 &b
+      - OBTAIN $6 &c
+      - DISPER $5 $6
+      - SETFLD $4 &b $5
+      - SETFLD $3 &5 $4
+      - SETKEY $1 $2 $3
+      - GENKEY $3 $1 $2
+      - GETFLD $4 $3 &4
+      - DISPER $4 $0
+      - SETFLD $3 &4 $4
+      - SETKEY $1 $2 $3
+      - STORE $1
+      - PMAKE $0 &1
+      - NOT $0 $0
+      - YIELD $0 &0
+    catches: []
+- ptr: 27
+  deps:
+  - 2
+  - 6
+  - 7
+  - 8
+  - 4
+  - 5
+  - 3
+  - 11
+  - 16
+  - 17
+  kind: callable
+  data:
+    name: SetAgentStatus
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: sageo_id
+      type: string
+    - slot: 1
+      label: status
+      type: string
+    returns:
+    - slot: 0
+      label: success
+      type: bool
+    executes:
+      asm:
+      - PMAKE $0 &1
+      - NOT $0 $0
+      - OBTAIN $1 &1
+      - LDPTR1 $2 0x2
+      - LMAKE $2 $2
+      - EQ $2 $1 $2
+      - NOT $2 $2
+      - AND $0 $0 $2
+      - NOT $2 $0
+      - LDPTR1 $3 0x18
+      - JUMPI $3 $2
+      - LDPTR1 $4 0x6
+      - LMAKE $4 $4
+      - EQ $4 $1 $4
+      - NOT $4 $4
+      - AND $0 $0 $4
+      - NOT $2 $0
+      - LDPTR1 $3 0x18
+      - JUMPI $3 $2
+      - LDPTR1 $2 0x7
+      - LMAKE $2 $2
+      - EQ $2 $1 $2
+      - NOT $2 $2
+      - AND $0 $0 $2
+      - DEST
+      - NOT $0 $0
+      - LDPTR1 $2 0x1f
+      - JUMPI $2 $0
+      - LDPTR1 $0 0x8
+      - LMAKE $0 $0
+      - THROW $0
+      - DEST
+      - LDPTR1 $0 0xf
+      - MAKE $0 $0
+      - PMAKE $2 &1
+      - LLOAD $3 &1
+      - OBTAIN $4 &0
+      - GETKEY $4 $3 $4
+      - SWAP $0 $4
+      - GETFLD $4 $0 &0
+      - LDPTR1 $5 0x4
+      - LMAKE $5 $5
+      - EQ $4 $4 $5
+      - NOT $4 $4
+      - COPY $2 $4
+      - DUMP $3
+      - NOT $3 $2
+      - NOT $3 $3
+      - LDPTR1 $4 0x35
+      - JUMPI $4 $3
+      - LDPTR1 $3 0x5
+      - LMAKE $3 $3
+      - THROW $3
+      - DEST
+      - PMAKE $3 &1
+      - ORIGIN $4
+      - ALOAD $5 $4 &0
+      - SIZE $6 $5
+      - LDPTR1 $7 0xb
+      - MAKE $7 $7
+      - PMAKE $8 &5
+      - PMAKE $9 &5
+      - DEST
+      - EQ $a $6 $9
+      - LDPTR1 $b 0x47
+      - JUMPI $b $a
+      - APPEND $7 $8
+      - INCR $8
+      - DECR $6
+      - LDPTR1 $b 0x3e
+      - JUMP $b
+      - DEST
+      - PMAKE $6 &5
+      - SIZE $8 $7
+      - DEST
+      - LT $9 $6 $8
+      - NOT $9 $9
+      - LDPTR1 $a 0x5d
+      - JUMPI $a $9
+      - GETIDX $9 $5 $6
+      - OBTAIN $b &0
+      - EQ $9 $9 $b
+      - NOT $9 $9
+      - LDPTR1 $b 0x58
+      - JUMPI $b $9
+      - PMAKE $9 &1
+      - NOT $9 $9
+      - COPY $3 $9
+      - DEST
+      - DEST
+      - INCR $6
+      - LDPTR1 $a 0x4a
+      - JUMP $a
+      - DEST
+      - DUMP $5
+      - NOT $0 $3
+      - NOT $0 $0
+      - LDPTR1 $2 0x66
+      - JUMPI $2 $0
+      - LDPTR1 $0 0x3
+      - LMAKE $0 $0
+      - THROW $0
+      - DEST
+      - PMAKE $0 &5
+      - LLOAD $2 &0
+      - GATHER $3 $2
+      - COPY $0 $3
+      - DUMP $2
+      - LLOAD $2 &1
+      - OBTAIN $3 &0
+      - GENKEY $4 $2 $3
+      - GETFLD $5 $4 &2
+      - DISPER $5 $1
+      - SETFLD $4 &2 $5
+      - SETKEY $2 $3 $4
+      - GENKEY $1 $2 $3
+      - GETFLD $4 $1 &4
+      - DISPER $4 $0
+      - SETFLD $1 &4 $4
+      - SETKEY $2 $3 $1
+      - STORE $2
+      - PMAKE $0 &1
+      - NOT $0 $0
+      - YIELD $0 &0
+    catches: []

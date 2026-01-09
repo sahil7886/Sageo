@@ -1,0 +1,368 @@
+coco SageoIdentityLogic
+
+// AgentSkill represents a capability of an agent
+class AgentSkill:
+    field id String
+    field name String
+    field description String
+    field tags String
+    field examples String
+
+// AgentCard represents the A2A protocol agent card
+class AgentCard:
+    field name String
+    field description String
+    field version String
+    field url String
+    field protocol_version String
+    field icon_url String
+    field documentation_url String
+    field preferred_transport String
+    field default_input_modes String
+    field default_output_modes String
+    field streaming Bool
+    field push_notifications Bool
+
+// AgentProfile is the on-chain agent profile
+class AgentProfile:
+    field sageo_id String
+    field owner String
+    field status String
+    field created_at U64
+    field updated_at U64
+    field agent_card AgentCard
+    field skills []AgentSkill
+
+// global state - registry of all agents
+state logic:
+    agent_counter U64
+    agents Map[String]AgentProfile
+    agent_ids []String
+
+// per-actor state - each participant tracks their owned agents
+state actor:
+    owned_agents []String
+    is_enlisted Bool
+
+// runs once on deploy
+endpoint deploy dynamic Deploy():
+    mutate 0 -> SageoIdentityLogic.Logic.agent_counter
+
+// enlist to use the registry
+endpoint enlist dynamic Enlist():
+    mutate true -> SageoIdentityLogic.Sender.is_enlisted
+
+// register a new agent with full metadata
+endpoint dynamic RegisterAgent(
+    name String,
+    description String,
+    version String,
+    url String,
+    protocol_version String,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String,
+    default_input_modes String,
+    default_output_modes String,
+    streaming Bool,
+    push_notifications Bool
+) -> (sageo_id String, profile AgentProfile):
+    // generate unique sageo_id
+    memory new_id String
+    mutate counter <- SageoIdentityLogic.Logic.agent_counter:
+        counter += 1
+        new_id = "agent_" + String(counter)
+
+    // get current timestamp (using counter as proxy)
+    memory timestamp U64
+    observe counter <- SageoIdentityLogic.Logic.agent_counter:
+        timestamp = counter
+
+    // build agent card
+    memory card AgentCard
+    card.name = name
+    card.description = description
+    card.version = version
+    card.url = url
+    card.protocol_version = protocol_version
+    card.icon_url = icon_url
+    card.documentation_url = documentation_url
+    card.preferred_transport = preferred_transport
+    card.default_input_modes = default_input_modes
+    card.default_output_modes = default_output_modes
+    card.streaming = streaming
+    card.push_notifications = push_notifications
+
+    // build profile with empty skills initially
+    memory new_profile AgentProfile
+    new_profile.sageo_id = new_id
+    new_profile.owner = "sender"
+    new_profile.status = "ACTIVE"
+    new_profile.created_at = timestamp
+    new_profile.updated_at = timestamp
+    new_profile.agent_card = card
+
+    // store in global map
+    mutate agents <- SageoIdentityLogic.Logic.agents:
+        disperse agents[new_id] <- new_profile
+
+    mutate ids <- SageoIdentityLogic.Logic.agent_ids:
+        append(ids, new_id)
+
+    // add to owner's list
+    mutate owned <- SageoIdentityLogic.Sender.owned_agents:
+        append(owned, new_id)
+
+    sageo_id = new_id
+    profile = new_profile
+
+// add a skill to an agent (owner only)
+endpoint dynamic AddSkill(
+    sageo_id String,
+    skill_id String,
+    skill_name String,
+    skill_description String,
+    skill_tags String,
+    skill_examples String
+) -> (success Bool):
+    // verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoIdentityLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // build skill
+    memory skill AgentSkill
+    skill.id = skill_id
+    skill.name = skill_name
+    skill.description = skill_description
+    skill.tags = skill_tags
+    skill.examples = skill_examples
+
+    // add skill to agent
+    mutate agents <- SageoIdentityLogic.Logic.agents:
+        disperse append(agents[sageo_id].skills, skill)
+
+    success = true
+
+// get agent by sageo_id
+endpoint static GetAgentById(sageo_id String) -> (profile AgentProfile, found Bool):
+    memory result AgentProfile
+    memory was_found Bool = false
+
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            memory card AgentCard
+            memory skills []AgentSkill
+
+            // copy card
+            card.name = agents[sageo_id].agent_card.name
+            card.description = agents[sageo_id].agent_card.description
+            card.version = agents[sageo_id].agent_card.version
+            card.url = agents[sageo_id].agent_card.url
+            card.protocol_version = agents[sageo_id].agent_card.protocol_version
+            card.icon_url = agents[sageo_id].agent_card.icon_url
+            card.documentation_url = agents[sageo_id].agent_card.documentation_url
+            card.preferred_transport = agents[sageo_id].agent_card.preferred_transport
+            card.default_input_modes = agents[sageo_id].agent_card.default_input_modes
+            card.default_output_modes = agents[sageo_id].agent_card.default_output_modes
+            card.streaming = agents[sageo_id].agent_card.streaming
+            card.push_notifications = agents[sageo_id].agent_card.push_notifications
+
+            // copy skills
+            for j in range(len(agents[sageo_id].skills)):
+                memory skill AgentSkill
+                skill.id = agents[sageo_id].skills[j].id
+                skill.name = agents[sageo_id].skills[j].name
+                skill.description = agents[sageo_id].skills[j].description
+                skill.tags = agents[sageo_id].skills[j].tags
+                skill.examples = agents[sageo_id].skills[j].examples
+                append(skills, skill)
+
+            result.sageo_id = agents[sageo_id].sageo_id
+            result.owner = agents[sageo_id].owner
+            result.status = agents[sageo_id].status
+            result.created_at = agents[sageo_id].created_at
+            result.updated_at = agents[sageo_id].updated_at
+            result.agent_card = card
+            result.skills = skills
+
+    profile = result
+    found = was_found
+
+// get agent by URL - iterates through all agents to find by URL
+endpoint static GetAgentByUrl(url String) -> (profile AgentProfile, found Bool):
+    memory result_id String
+    memory ids []String
+
+    // get all agent IDs
+    observe agent_ids <- SageoIdentityLogic.Logic.agent_ids:
+        for i in range(len(agent_ids)):
+            append(ids, agent_ids[i])
+
+    // search for matching URL
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        for i in range(len(ids)):
+            if agents[ids[i]].agent_card.url == url:
+                result_id = ids[i]
+
+    if result_id == "":
+        memory empty AgentProfile
+        profile = empty
+        found = false
+        return
+
+    memory result AgentProfile
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        memory card AgentCard
+        memory skills []AgentSkill
+
+        // copy card
+        card.name = agents[result_id].agent_card.name
+        card.description = agents[result_id].agent_card.description
+        card.version = agents[result_id].agent_card.version
+        card.url = agents[result_id].agent_card.url
+        card.protocol_version = agents[result_id].agent_card.protocol_version
+        card.icon_url = agents[result_id].agent_card.icon_url
+        card.documentation_url = agents[result_id].agent_card.documentation_url
+        card.preferred_transport = agents[result_id].agent_card.preferred_transport
+        card.default_input_modes = agents[result_id].agent_card.default_input_modes
+        card.default_output_modes = agents[result_id].agent_card.default_output_modes
+        card.streaming = agents[result_id].agent_card.streaming
+        card.push_notifications = agents[result_id].agent_card.push_notifications
+
+        // copy skills
+        for j in range(len(agents[result_id].skills)):
+            memory skill AgentSkill
+            skill.id = agents[result_id].skills[j].id
+            skill.name = agents[result_id].skills[j].name
+            skill.description = agents[result_id].skills[j].description
+            skill.tags = agents[result_id].skills[j].tags
+            skill.examples = agents[result_id].skills[j].examples
+            append(skills, skill)
+
+        result.sageo_id = agents[result_id].sageo_id
+        result.owner = agents[result_id].owner
+        result.status = agents[result_id].status
+        result.created_at = agents[result_id].created_at
+        result.updated_at = agents[result_id].updated_at
+        result.agent_card = card
+        result.skills = skills
+
+    profile = result
+    found = true
+
+// get all agent IDs - used by backend for fetching full agent list
+// TODO: For scalability (10K+ agents), consider adding GetAgentIdsPaginated(offset, limit)
+// to enable incremental fetching and reduce data transfer per call
+endpoint static GetAllAgentIds() -> (ids []String):
+    memory result []String
+    observe agent_ids <- SageoIdentityLogic.Logic.agent_ids:
+        for i in range(len(agent_ids)):
+            append(result, agent_ids[i])
+    ids = result
+
+// get total number of registered agents
+endpoint static GetAgentCount() -> (count U64):
+    observe agent_ids <- SageoIdentityLogic.Logic.agent_ids:
+        count = U64(len(agent_ids))
+
+// update agent card (owner only) - returns success, call GetAgentById for full profile
+endpoint dynamic UpdateAgentCard(
+    sageo_id String,
+    name String,
+    description String,
+    version String,
+    url String,
+    protocol_version String,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String,
+    default_input_modes String,
+    default_output_modes String,
+    streaming Bool,
+    push_notifications Bool
+) -> (success Bool):
+    // check if agent exists
+    storage existing AgentProfile
+    memory exists Bool = false
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        existing = agents[sageo_id]
+        exists = existing.sageo_id != ""
+
+    if !exists:
+        throw "Agent not found"
+
+    // verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoIdentityLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // update agent card fields
+    memory timestamp U64
+    observe counter <- SageoIdentityLogic.Logic.agent_counter:
+        timestamp = counter
+
+    mutate agents <- SageoIdentityLogic.Logic.agents:
+        agents[sageo_id].agent_card.name = name
+        agents[sageo_id].agent_card.description = description
+        agents[sageo_id].agent_card.version = version
+        agents[sageo_id].agent_card.url = url
+        agents[sageo_id].agent_card.protocol_version = protocol_version
+        agents[sageo_id].agent_card.icon_url = icon_url
+        agents[sageo_id].agent_card.documentation_url = documentation_url
+        agents[sageo_id].agent_card.preferred_transport = preferred_transport
+        agents[sageo_id].agent_card.default_input_modes = default_input_modes
+        agents[sageo_id].agent_card.default_output_modes = default_output_modes
+        agents[sageo_id].agent_card.streaming = streaming
+        agents[sageo_id].agent_card.push_notifications = push_notifications
+        agents[sageo_id].updated_at = timestamp
+
+    success = true
+
+// set agent status (owner only) - returns success, call GetAgentById for full profile
+endpoint dynamic SetAgentStatus(sageo_id String, status String) -> (success Bool):
+    // validate status
+    if status != "ACTIVE" && status != "PAUSED" && status != "DEPRECATED":
+        throw "Invalid status"
+
+    // check if agent exists
+    storage existing AgentProfile
+    memory exists Bool = false
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        existing = agents[sageo_id]
+        exists = existing.sageo_id != ""
+
+    if !exists:
+        throw "Agent not found"
+
+    // verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoIdentityLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // update status
+    memory timestamp U64
+    observe counter <- SageoIdentityLogic.Logic.agent_counter:
+        timestamp = counter
+
+    mutate agents <- SageoIdentityLogic.Logic.agents:
+        agents[sageo_id].status = status
+        agents[sageo_id].updated_at = timestamp
+
+    success = true
