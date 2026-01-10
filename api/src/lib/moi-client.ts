@@ -13,9 +13,9 @@ export const MOI_MNEMONIC = "repair cycle monitor satisfy warfare forest decorat
 export const MOI_DERIVATION_PATH = "m/44'/6174'/7020'/0/0";
 export const MOI_NETWORK = 'devnet';
 
-// DEPLOYED CONTRACT ADDRESSES (To be updated after deployment)
-export const IDENTITY_LOGIC_ID = "0x20000000c4b857e2dd73df98ad23cf1b86affcbb4c46e583e16b70df00000000";
-export const INTERACTION_LOGIC_ID = ""; // Failed deployment
+// DEPLOYED CONTRACT ADDRESSES (Updated after deployment)
+export const IDENTITY_LOGIC_ID = "0x20000000d74b43d8f00c9887188a69da6fc329fd1420f386c34cceee00000000";
+export const INTERACTION_LOGIC_ID = ""; // Not deployed yet
 
 // Cache for logic manifests
 const manifestCache: Map<string, any> = new Map();

@@ -3,7 +3,7 @@
  * Script to create mock agents on the deployed SageoIdentityLogic contract
  */
 
-import { initializeMOI, getWallet, getProvider, getLogicDriver, IDENTITY_LOGIC_ID } from '../src/lib/moi-client.js';
+import { initializeMOI, getWallet, getLogicDriver, IDENTITY_LOGIC_ID } from '../src/lib/moi-client.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -15,34 +15,77 @@ const __dirname = path.dirname(__filename);
 // Path to compiled contract manifests
 const IDENTITY_MANIFEST_PATH = path.resolve(__dirname, '../../contract/SageoIdentityLogic/sageoidentitylogic.yaml');
 
+// Mock agents matching the updated contract structure
 const MOCK_AGENTS = [
   {
     name: "WeatherBot",
-    description: "Provides weather updates",
+    description: "Provides weather updates and forecasts",
     version: "1.0.0",
     url: "https://weather.example.com",
-    protocol_version: "0.1.0",
+    protocol_version: "0.3.0",
+    default_input_modes: '["text","voice"]',
+    default_output_modes: '["text"]',
+    streaming: true,
+    push_notifications: false,
+    state_transition_history: false,
     icon_url: "https://weather.example.com/icon.png",
     documentation_url: "https://weather.example.com/docs",
-    preferred_transport: "http",
-    default_input_modes: "text",
-    default_output_modes: "text",
-    streaming: false,
-    push_notifications: false
+    preferred_transport: "JSONRPC",
+    skills: [
+      {
+        skill_id: "weather_forecast",
+        skill_name: "Weather Forecast",
+        skill_description: "Get weather forecasts for any location",
+        skill_tags: "weather,forecast,prediction",
+        skill_examples: '["What is the weather tomorrow?","Will it rain this weekend?"]',
+        skill_input_modes: '["text"]',
+        skill_output_modes: '["text"]'
+      },
+      {
+        skill_id: "current_weather",
+        skill_name: "Current Weather",
+        skill_description: "Get current weather conditions",
+        skill_tags: "weather,current,now",
+        skill_examples: '["What is the weather now?","Is it raining?"]',
+        skill_input_modes: '["text"]',
+        skill_output_modes: '["text"]'
+      }
+    ]
   },
   {
     name: "StockTrader",
-    description: "Analyzes stock market trends",
+    description: "Analyzes stock market trends and provides trading insights",
     version: "2.1.0",
     url: "https://stocks.example.com",
-    protocol_version: "0.1.0",
+    protocol_version: "0.3.0",
+    default_input_modes: '["text","structured"]',
+    default_output_modes: '["text","structured"]',
+    streaming: true,
+    push_notifications: true,
+    state_transition_history: true,
     icon_url: "https://stocks.example.com/logo.png",
     documentation_url: "https://stocks.example.com/api",
-    preferred_transport: "http",
-    default_input_modes: "json",
-    default_output_modes: "json",
-    streaming: true,
-    push_notifications: true
+    preferred_transport: "HTTP+JSON",
+    skills: [
+      {
+        skill_id: "stock_analysis",
+        skill_name: "Stock Analysis",
+        skill_description: "Analyze stock performance and trends",
+        skill_tags: "stocks,analysis,trading",
+        skill_examples: '["Analyze AAPL stock","Show me TSLA trend"]',
+        skill_input_modes: '["text"]',
+        skill_output_modes: '["text","structured"]'
+      },
+      {
+        skill_id: "portfolio_management",
+        skill_name: "Portfolio Management",
+        skill_description: "Manage and track investment portfolios",
+        skill_tags: "portfolio,investment,tracking",
+        skill_examples: '["Show my portfolio","Track my investments"]',
+        skill_input_modes: '["text","structured"]',
+        skill_output_modes: '["structured"]'
+      }
+    ]
   }
 ];
 
@@ -81,9 +124,8 @@ async function main() {
 
   // Register agents
   console.log('\n🤖 Registering mock agents...');
-  
-  // First, we need to enlist ourselves if not already enlisted?
-  // The contract has an Enlist function. Let's try calling it.
+
+  // First, we need to enlist ourselves if not already enlisted
   try {
     console.log('📝 Enlisting sender...');
     const enlistIx = await logicDriver.routines.Enlist();
@@ -93,36 +135,90 @@ async function main() {
     console.log('⚠️  Enlistment might have failed or already enlisted:', (error as Error).message);
   }
 
+  // Get initial agent count to track sageo_ids
+  let nextAgentNumber = 1;
+  try {
+    const countResult = await logicDriver.routines.GetAgentCount();
+    // MOI SDK returns { output: { count: N }, error: null }
+    const count = countResult?.output?.count ?? countResult?.count ?? 0;
+    nextAgentNumber = count + 1;
+    console.log(`📊 Current agent count: ${count}, next agent will be agent_${nextAgentNumber}`);
+  } catch (err) {
+    console.log('⚠️  Could not get current agent count, starting from 1');
+  }
+
   for (const agent of MOCK_AGENTS) {
     console.log(`\nRegistering ${agent.name}...`);
     try {
+      // Register the agent with the new parameter order
       const ix = await logicDriver.routines.RegisterAgent(
         agent.name,
         agent.description,
         agent.version,
         agent.url,
         agent.protocol_version,
-        agent.icon_url,
-        agent.documentation_url,
-        agent.preferred_transport,
         agent.default_input_modes,
         agent.default_output_modes,
         agent.streaming,
-        agent.push_notifications
+        agent.push_notifications,
+        agent.state_transition_history,
+        agent.icon_url,
+        agent.documentation_url,
+        agent.preferred_transport
       );
-      
+
       console.log(`⏳ Waiting for confirmation... (Hash: ${ix.hash})`);
       const receipt = await ix.wait();
-      
-      // Extract sageo_id from result if possible
-      // The return values are (sageo_id, profile)
-      // Depending on SDK, receipt.result might contain this
-      console.log(`✅ Registered ${agent.name}`);
-      // console.log('Receipt:', JSON.stringify(receipt, null, 2));
-      
+
+      // The sageo_id should be agent_N where N is the next agent number
+      // We track this ourselves since the receipt contains POLO-encoded outputs
+      const sageo_id = `agent_${nextAgentNumber}`;
+      nextAgentNumber++;
+
+      console.log(`✅ Registered ${agent.name} with sageo_id: ${sageo_id}`);
+
+      // Add skills for this agent
+      if (agent.skills) {
+        for (const skill of agent.skills) {
+          console.log(`   Adding skill: ${skill.skill_name}...`);
+          try {
+            const skillIx = await logicDriver.routines.AddSkill(
+              sageo_id,
+              skill.skill_id,
+              skill.skill_name,
+              skill.skill_description,
+              skill.skill_tags,
+              skill.skill_examples,
+              skill.skill_input_modes,
+              skill.skill_output_modes
+            );
+            await skillIx.wait();
+            console.log(`   ✅ Added skill: ${skill.skill_name}`);
+          } catch (error) {
+            console.error(`   ❌ Failed to add skill ${skill.skill_name}:`, (error as Error).message);
+          }
+        }
+      }
+
     } catch (error) {
       console.error(`❌ Failed to register ${agent.name}:`, (error as Error).message);
     }
+  }
+
+  // Verify registration
+  console.log('\n📊 Verifying registration...');
+  try {
+    const countResult = await logicDriver.routines.GetAgentCount();
+    // MOI SDK returns { output: { count: N }, error: null }
+    const count = countResult?.output?.count ?? countResult?.count ?? 'unknown';
+    console.log(`Total agents registered: ${count}`);
+
+    const idsResult = await logicDriver.routines.GetAllAgentIds();
+    // MOI SDK returns { output: { ids: [...] }, error: null }
+    const ids = idsResult?.output?.ids ?? idsResult?.ids ?? [];
+    console.log(`Agent IDs: ${JSON.stringify(ids)}`);
+  } catch (error) {
+    console.error('❌ Failed to verify:', (error as Error).message);
   }
 
   console.log('\n========================================');

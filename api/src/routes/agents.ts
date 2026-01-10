@@ -33,69 +33,54 @@ router.get('/:sageo_id/ping', (req: Request, res: Response) => {
   res.json({ ok: true, sageo_id: req.params.sageo_id });
 });
 
-// GET /:sageo_id/card - Get agent card only (must come before /:sageo_id)
+// GET /:sageo_id/card - Get agent card with skills
+// Note: Due to Cocolang limitation, skills are fetched separately and merged
 router.get('/:sageo_id/card', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // Validate sageo_id
     const sageo_id = validateSageoId(req.params.sageo_id);
-
-    // Require identity contract (throws 501 if missing)
     const identityAddress = requireContract('identity');
-
-    // Get config for RPC URL
     const config = getConfig();
 
-    // Call identity contract method GetAgentCard
-    let result: unknown;
-    try {
-      result = await readLogic(config, identityAddress, 'GetAgentCard', 'identity', sageo_id);
-    } catch (error) {
-      // Re-throw ApiError as-is, wrap others
-      if (error instanceof ApiError) {
-        throw error;
-      }
-      throw new ApiError(
-        500,
-        'CHAIN_ERROR',
-        `Failed to read from identity contract: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    }
+    // Fetch card and skills in parallel
+    const [cardResult, skillsResult] = await Promise.all([
+      readLogic(config, identityAddress, 'GetAgentCard', 'identity', sageo_id),
+      readLogic(config, identityAddress, 'GetAgentSkills', 'identity', sageo_id)
+    ]);
 
-    // Handle null/not found
-    if (result === null || result === undefined) {
+    // Process card result
+    const cardData = cardResult as any;
+    if (cardData.error && cardData.error.error === 'map key does not exist') {
+      throw new NotFoundError('Agent');
+    }
+    if (cardData.output && cardData.output.found === false) {
       throw new NotFoundError('Agent');
     }
 
-    // Ensure result is an object
-    if (typeof result !== 'object' || result === null || Array.isArray(result)) {
-      throw new ApiError(
-        500,
-        'CHAIN_ERROR',
-        'Invalid response format from identity contract'
-      );
+    // Extract card
+    let card: any;
+    if (cardData.output && cardData.output.card) {
+      card = cardData.output.card;
+    } else if (cardData.card) {
+      card = cardData.card;
+    } else {
+      card = cardData;
     }
 
-    // Since GetAgentCard returns the card directly (wrapped in result), we just return it
-    // The previous logic expected a profile wrapper
-    // The result from SDK is actually { output: { card: ..., found: true }, error: null }
-    // Or sometimes directly the output if unwrapped.
-    // The previous logs showed: {"output":{"card":{...},"found":true},"error":null}
-    const data = result as any;
-    
-    if (data.output && data.output.card) {
-        res.status(200).json(data.output.card);
-    } else if (data.card) {
-        res.status(200).json(data.card);
-    } else {
-        // Fallback if structure is different
-        res.status(200).json(result);
+    // Extract skills and merge into card
+    const skillsData = skillsResult as any;
+    if (skillsData.output && skillsData.output.skills) {
+      card.skills = skillsData.output.skills;
+    } else if (skillsData.skills) {
+      card.skills = skillsData.skills;
     }
+
+    res.status(200).json(card);
   } catch (error) {
     next(error);
   }
 });
 
-// GET /:sageo_id - Get agent profile by ID (must come after /:sageo_id/card)
+// GET /:sageo_id - Get agent profile metadata by ID (must come after /:sageo_id/card)
 router.get('/:sageo_id', async (req: Request, res: Response, next: NextFunction) => {
   try {
     // Validate sageo_id
@@ -107,10 +92,10 @@ router.get('/:sageo_id', async (req: Request, res: Response, next: NextFunction)
     // Get config for RPC URL
     const config = getConfig();
 
-    // Call identity contract method GetAgentById
+    // Call identity contract method GetAgentProfile (returns metadata without agent_card)
     let result: unknown;
     try {
-      result = await readLogic(config, identityAddress, 'GetAgentById', 'identity', sageo_id);
+      result = await readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageo_id);
     } catch (error) {
       // Re-throw ApiError as-is, wrap others
       if (error instanceof ApiError) {
@@ -137,8 +122,28 @@ router.get('/:sageo_id', async (req: Request, res: Response, next: NextFunction)
       );
     }
 
-    // Return agent profile JSON as-is
-    res.status(200).json(result);
+    // Extract profile from result
+    // Result format: { output: { profile: {...}, found: true }, error: null }
+    // Or on error: { output: null, error: { class: "...", error: "map key does not exist" } }
+    const data = result as any;
+
+    // Check for contract error (agent not found)
+    if (data.error && data.error.error === 'map key does not exist') {
+      throw new NotFoundError('Agent');
+    }
+
+    if (data.output && data.output.found === false) {
+      throw new NotFoundError('Agent');
+    }
+
+    if (data.output && data.output.profile) {
+      res.status(200).json(data.output.profile);
+    } else if (data.profile) {
+      res.status(200).json(data.profile);
+    } else {
+      // Fallback if structure is different
+      res.status(200).json(result);
+    }
   } catch (error) {
     next(error);
   }

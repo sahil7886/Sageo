@@ -1,29 +1,47 @@
 coco SageoIdentityLogic
 
-// AgentSkill represents a capability of an agent
+// AgentSkill represents a capability of an agent (matches A2A spec)
+// Arrays stored as JSON strings due to Cocolang limitations
 class AgentSkill:
     field id String
     field name String
     field description String
-    field tags String
-    field examples String
+    field tags String           // comma-separated or JSON array
+    field examples String       // JSON array as string
+    field input_modes String    // JSON array as string
+    field output_modes String   // JSON array as string
 
-// AgentCard represents the A2A protocol agent card
+// AgentCapabilities matches A2A AgentCapabilities1
+class AgentCapabilities:
+    field streaming Bool
+    field push_notifications Bool
+    field state_transition_history Bool
+
+// AgentCard matches A2A spec structure
 class AgentCard:
     field name String
     field description String
     field version String
     field url String
     field protocol_version String
+    field default_input_modes String    // JSON array as string
+    field default_output_modes String   // JSON array as string
+    field capabilities AgentCapabilities
+    field skills []AgentSkill           // Skills inside card per A2A spec
     field icon_url String
     field documentation_url String
-    field preferred_transport String
-    field default_input_modes String
-    field default_output_modes String
-    field streaming Bool
-    field push_notifications Bool
+    field preferred_transport String    // "JSONRPC" | "GRPC" | "HTTP+JSON"
 
-// AgentProfile is the on-chain agent profile
+// AgentProfileMeta - profile metadata WITHOUT agent_card to prevent overfetching
+// Use GetAgentCard to fetch the card separately
+class AgentProfileMeta:
+    field sageo_id String
+    field owner String
+    field status String         // "ACTIVE" | "PAUSED" | "DEPRECATED"
+    field created_at U64
+    field updated_at U64
+
+// Full AgentProfile for internal storage
 class AgentProfile:
     field sageo_id String
     field owner String
@@ -31,7 +49,6 @@ class AgentProfile:
     field created_at U64
     field updated_at U64
     field agent_card AgentCard
-    field skills []AgentSkill
 
 // global state - registry of all agents
 state logic:
@@ -52,21 +69,22 @@ endpoint deploy dynamic Deploy():
 endpoint enlist dynamic Enlist():
     mutate true -> SageoIdentityLogic.Sender.is_enlisted
 
-// register a new agent with full metadata
+// register a new agent with full A2A AgentCard metadata
 endpoint dynamic RegisterAgent(
     name String,
     description String,
     version String,
     url String,
     protocol_version String,
-    icon_url String,
-    documentation_url String,
-    preferred_transport String,
     default_input_modes String,
     default_output_modes String,
     streaming Bool,
-    push_notifications Bool
-) -> (sageo_id String, profile AgentProfile):
+    push_notifications Bool,
+    state_transition_history Bool,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String
+) -> (sageo_id String):
     // generate unique sageo_id
     memory new_id String
     mutate counter <- SageoIdentityLogic.Logic.agent_counter:
@@ -78,6 +96,12 @@ endpoint dynamic RegisterAgent(
     observe counter <- SageoIdentityLogic.Logic.agent_counter:
         timestamp = counter
 
+    // build capabilities
+    memory caps AgentCapabilities
+    caps.streaming = streaming
+    caps.push_notifications = push_notifications
+    caps.state_transition_history = state_transition_history
+
     // build agent card
     memory card AgentCard
     card.name = name
@@ -85,13 +109,12 @@ endpoint dynamic RegisterAgent(
     card.version = version
     card.url = url
     card.protocol_version = protocol_version
+    card.default_input_modes = default_input_modes
+    card.default_output_modes = default_output_modes
+    card.capabilities = caps
     card.icon_url = icon_url
     card.documentation_url = documentation_url
     card.preferred_transport = preferred_transport
-    card.default_input_modes = default_input_modes
-    card.default_output_modes = default_output_modes
-    card.streaming = streaming
-    card.push_notifications = push_notifications
 
     // build profile with empty skills initially
     memory new_profile AgentProfile
@@ -114,7 +137,6 @@ endpoint dynamic RegisterAgent(
         append(owned, new_id)
 
     sageo_id = new_id
-    profile = new_profile
 
 // add a skill to an agent (owner only)
 endpoint dynamic AddSkill(
@@ -123,7 +145,9 @@ endpoint dynamic AddSkill(
     skill_name String,
     skill_description String,
     skill_tags String,
-    skill_examples String
+    skill_examples String,
+    skill_input_modes String,
+    skill_output_modes String
 ) -> (success Bool):
     // verify ownership
     memory is_owner Bool = false
@@ -142,62 +166,35 @@ endpoint dynamic AddSkill(
     skill.description = skill_description
     skill.tags = skill_tags
     skill.examples = skill_examples
+    skill.input_modes = skill_input_modes
+    skill.output_modes = skill_output_modes
 
-    // add skill to agent
+    // add skill to agent's card
     mutate agents <- SageoIdentityLogic.Logic.agents:
-        disperse append(agents[sageo_id].skills, skill)
+        disperse append(agents[sageo_id].agent_card.skills, skill)
 
     success = true
 
-// get agent by sageo_id (Original implementation)
-// Note: This fails on some PISA versions due to varray serialization issues.
-// Use GetAgentCard or GetAgentDetails instead if this fails.
-endpoint static GetAgentById(sageo_id String) -> (profile AgentProfile, found Bool):
-    memory result AgentProfile
+// Get agent profile metadata (WITHOUT agent_card to prevent overfetching)
+// Use GetAgentCard to fetch the card separately
+endpoint static GetAgentProfile(sageo_id String) -> (profile AgentProfileMeta, found Bool):
+    memory result AgentProfileMeta
     memory was_found Bool = false
 
     observe agents <- SageoIdentityLogic.Logic.agents:
         was_found = agents[sageo_id].sageo_id != ""
         if was_found:
-            memory card AgentCard
-            memory skills []AgentSkill
-
-            // copy card
-            card.name = agents[sageo_id].agent_card.name
-            card.description = agents[sageo_id].agent_card.description
-            card.version = agents[sageo_id].agent_card.version
-            card.url = agents[sageo_id].agent_card.url
-            card.protocol_version = agents[sageo_id].agent_card.protocol_version
-            card.icon_url = agents[sageo_id].agent_card.icon_url
-            card.documentation_url = agents[sageo_id].agent_card.documentation_url
-            card.preferred_transport = agents[sageo_id].agent_card.preferred_transport
-            card.default_input_modes = agents[sageo_id].agent_card.default_input_modes
-            card.default_output_modes = agents[sageo_id].agent_card.default_output_modes
-            card.streaming = agents[sageo_id].agent_card.streaming
-            card.push_notifications = agents[sageo_id].agent_card.push_notifications
-
-            // copy skills
-            for j in range(len(agents[sageo_id].skills)):
-                memory skill AgentSkill
-                skill.id = agents[sageo_id].skills[j].id
-                skill.name = agents[sageo_id].skills[j].name
-                skill.description = agents[sageo_id].skills[j].description
-                skill.tags = agents[sageo_id].skills[j].tags
-                skill.examples = agents[sageo_id].skills[j].examples
-                append(skills, skill)
-
             result.sageo_id = agents[sageo_id].sageo_id
             result.owner = agents[sageo_id].owner
             result.status = agents[sageo_id].status
             result.created_at = agents[sageo_id].created_at
             result.updated_at = agents[sageo_id].updated_at
-            result.agent_card = card
-            result.skills = skills
 
     profile = result
     found = was_found
 
-// Get only the AgentCard part (Workaround for complex struct issues)
+// Get the AgentCard for an agent (excludes skills due to Cocolang varray serialization limitation)
+// Use GetAgentSkills separately to fetch skills
 endpoint static GetAgentCard(sageo_id String) -> (card AgentCard, found Bool):
     memory result AgentCard
     memory was_found Bool = false
@@ -205,25 +202,52 @@ endpoint static GetAgentCard(sageo_id String) -> (card AgentCard, found Bool):
     observe agents <- SageoIdentityLogic.Logic.agents:
         was_found = agents[sageo_id].sageo_id != ""
         if was_found:
-            // copy card
+            // copy capabilities
+            memory caps AgentCapabilities
+            caps.streaming = agents[sageo_id].agent_card.capabilities.streaming
+            caps.push_notifications = agents[sageo_id].agent_card.capabilities.push_notifications
+            caps.state_transition_history = agents[sageo_id].agent_card.capabilities.state_transition_history
+
+            // copy card fields (skills excluded - use GetAgentSkills)
             result.name = agents[sageo_id].agent_card.name
             result.description = agents[sageo_id].agent_card.description
             result.version = agents[sageo_id].agent_card.version
             result.url = agents[sageo_id].agent_card.url
             result.protocol_version = agents[sageo_id].agent_card.protocol_version
+            result.default_input_modes = agents[sageo_id].agent_card.default_input_modes
+            result.default_output_modes = agents[sageo_id].agent_card.default_output_modes
+            result.capabilities = caps
             result.icon_url = agents[sageo_id].agent_card.icon_url
             result.documentation_url = agents[sageo_id].agent_card.documentation_url
             result.preferred_transport = agents[sageo_id].agent_card.preferred_transport
-            result.default_input_modes = agents[sageo_id].agent_card.default_input_modes
-            result.default_output_modes = agents[sageo_id].agent_card.default_output_modes
-            result.streaming = agents[sageo_id].agent_card.streaming
-            result.push_notifications = agents[sageo_id].agent_card.push_notifications
 
     card = result
     found = was_found
 
+// Get skills for an agent (separate endpoint in case GetAgentCard has serialization issues with skills)
+endpoint static GetAgentSkills(sageo_id String) -> (skills []AgentSkill, found Bool):
+    memory result []AgentSkill
+    memory was_found Bool = false
+
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            for j in range(len(agents[sageo_id].agent_card.skills)):
+                memory skill AgentSkill
+                skill.id = agents[sageo_id].agent_card.skills[j].id
+                skill.name = agents[sageo_id].agent_card.skills[j].name
+                skill.description = agents[sageo_id].agent_card.skills[j].description
+                skill.tags = agents[sageo_id].agent_card.skills[j].tags
+                skill.examples = agents[sageo_id].agent_card.skills[j].examples
+                skill.input_modes = agents[sageo_id].agent_card.skills[j].input_modes
+                skill.output_modes = agents[sageo_id].agent_card.skills[j].output_modes
+                append(result, skill)
+
+    skills = result
+    found = was_found
+
 // get agent by URL - iterates through all agents to find by URL
-endpoint static GetAgentByUrl(url String) -> (profile AgentProfile, found Bool):
+endpoint static GetAgentByUrl(url String) -> (profile AgentProfileMeta, found Bool):
     memory result_id String
     memory ids []String
 
@@ -239,54 +263,24 @@ endpoint static GetAgentByUrl(url String) -> (profile AgentProfile, found Bool):
                 result_id = ids[i]
 
     if result_id == "":
-        memory empty AgentProfile
+        memory empty AgentProfileMeta
         profile = empty
         found = false
         return
 
-    memory result AgentProfile
+    // Return profile metadata (use GetAgentCard for full card)
+    memory result AgentProfileMeta
     observe agents <- SageoIdentityLogic.Logic.agents:
-        memory card AgentCard
-        memory skills []AgentSkill
-
-        // copy card
-        card.name = agents[result_id].agent_card.name
-        card.description = agents[result_id].agent_card.description
-        card.version = agents[result_id].agent_card.version
-        card.url = agents[result_id].agent_card.url
-        card.protocol_version = agents[result_id].agent_card.protocol_version
-        card.icon_url = agents[result_id].agent_card.icon_url
-        card.documentation_url = agents[result_id].agent_card.documentation_url
-        card.preferred_transport = agents[result_id].agent_card.preferred_transport
-        card.default_input_modes = agents[result_id].agent_card.default_input_modes
-        card.default_output_modes = agents[result_id].agent_card.default_output_modes
-        card.streaming = agents[result_id].agent_card.streaming
-        card.push_notifications = agents[result_id].agent_card.push_notifications
-
-        // copy skills
-        for j in range(len(agents[result_id].skills)):
-            memory skill AgentSkill
-            skill.id = agents[result_id].skills[j].id
-            skill.name = agents[result_id].skills[j].name
-            skill.description = agents[result_id].skills[j].description
-            skill.tags = agents[result_id].skills[j].tags
-            skill.examples = agents[result_id].skills[j].examples
-            append(skills, skill)
-
         result.sageo_id = agents[result_id].sageo_id
         result.owner = agents[result_id].owner
         result.status = agents[result_id].status
         result.created_at = agents[result_id].created_at
         result.updated_at = agents[result_id].updated_at
-        result.agent_card = card
-        result.skills = skills
 
     profile = result
     found = true
 
 // get all agent IDs - used by backend for fetching full agent list
-// TODO: For scalability (10K+ agents), consider adding GetAgentIdsPaginated(offset, limit)
-// to enable incremental fetching and reduce data transfer per call
 endpoint static GetAllAgentIds() -> (ids []String):
     memory result []String
     observe agent_ids <- SageoIdentityLogic.Logic.agent_ids:
@@ -299,7 +293,7 @@ endpoint static GetAgentCount() -> (count U64):
     observe agent_ids <- SageoIdentityLogic.Logic.agent_ids:
         count = U64(len(agent_ids))
 
-// update agent card (owner only) - returns success, call GetAgentById for full profile
+// update agent card (owner only)
 endpoint dynamic UpdateAgentCard(
     sageo_id String,
     name String,
@@ -307,13 +301,14 @@ endpoint dynamic UpdateAgentCard(
     version String,
     url String,
     protocol_version String,
-    icon_url String,
-    documentation_url String,
-    preferred_transport String,
     default_input_modes String,
     default_output_modes String,
     streaming Bool,
-    push_notifications Bool
+    push_notifications Bool,
+    state_transition_history Bool,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String
 ) -> (success Bool):
     // check if agent exists
     storage existing AgentProfile
@@ -346,18 +341,19 @@ endpoint dynamic UpdateAgentCard(
         agents[sageo_id].agent_card.version = version
         agents[sageo_id].agent_card.url = url
         agents[sageo_id].agent_card.protocol_version = protocol_version
+        agents[sageo_id].agent_card.default_input_modes = default_input_modes
+        agents[sageo_id].agent_card.default_output_modes = default_output_modes
+        agents[sageo_id].agent_card.capabilities.streaming = streaming
+        agents[sageo_id].agent_card.capabilities.push_notifications = push_notifications
+        agents[sageo_id].agent_card.capabilities.state_transition_history = state_transition_history
         agents[sageo_id].agent_card.icon_url = icon_url
         agents[sageo_id].agent_card.documentation_url = documentation_url
         agents[sageo_id].agent_card.preferred_transport = preferred_transport
-        agents[sageo_id].agent_card.default_input_modes = default_input_modes
-        agents[sageo_id].agent_card.default_output_modes = default_output_modes
-        agents[sageo_id].agent_card.streaming = streaming
-        agents[sageo_id].agent_card.push_notifications = push_notifications
         agents[sageo_id].updated_at = timestamp
 
     success = true
 
-// set agent status (owner only) - returns success, call GetAgentById for full profile
+// set agent status (owner only)
 endpoint dynamic SetAgentStatus(sageo_id String, status String) -> (success Bool):
     // validate status
     if status != "ACTIVE" && status != "PAUSED" && status != "DEPRECATED":

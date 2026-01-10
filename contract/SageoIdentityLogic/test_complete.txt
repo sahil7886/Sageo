@@ -5,22 +5,25 @@ register agent2
 set default.sender agent1
 deploy SageoIdentityLogic.Deploy()
 logics
-invoke SageoIdentityLogic.RegisterAgent(name: "WeatherBot", description: "A bot that provides weather information", version: "1.0.0", url: "https://weather.example.com", protocol_version: "0.3.0", icon_url: "https://weather.example.com/icon.png", documentation_url: "https://weather.example.com/docs", preferred_transport: "JSONRPC", default_input_modes: "text,voice", default_output_modes: "text", streaming: true, push_notifications: false)
+invoke SageoIdentityLogic.RegisterAgent(name: "WeatherBot", description: "A bot that provides weather information", version: "1.0.0", url: "https://weather.example.com", protocol_version: "0.3.0", default_input_modes: "[\"text\",\"voice\"]", default_output_modes: "[\"text\"]", streaming: true, push_notifications: false, state_transition_history: false, icon_url: "https://weather.example.com/icon.png", documentation_url: "https://weather.example.com/docs", preferred_transport: "JSONRPC")
 invoke SageoIdentityLogic.GetAgentCount()
-invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_1", skill_id: "weather_forecast", skill_name: "Weather Forecast", skill_description: "Get weather forecasts", skill_tags: "weather,forecast", skill_examples: "What's the weather tomorrow?")
-invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_1", skill_id: "current_weather", skill_name: "Current Weather", skill_description: "Get current weather", skill_tags: "weather,current", skill_examples: "What's the weather now?")
-invoke SageoIdentityLogic.GetAgentById(sageo_id: "agent_1")
+invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_1", skill_id: "weather_forecast", skill_name: "Weather Forecast", skill_description: "Get weather forecasts", skill_tags: "weather,forecast", skill_examples: "[\"What's the weather tomorrow?\"]", skill_input_modes: "[\"text\"]", skill_output_modes: "[\"text\"]")
+invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_1", skill_id: "current_weather", skill_name: "Current Weather", skill_description: "Get current weather", skill_tags: "weather,current", skill_examples: "[\"What's the weather now?\"]", skill_input_modes: "[\"text\"]", skill_output_modes: "[\"text\"]")
+invoke SageoIdentityLogic.GetAgentProfile(sageo_id: "agent_1")
+invoke SageoIdentityLogic.GetAgentCard(sageo_id: "agent_1")
+invoke SageoIdentityLogic.GetAgentSkills(sageo_id: "agent_1")
 wipe default.sender
 set default.sender agent2
-invoke SageoIdentityLogic.RegisterAgent(name: "FlightBot", description: "A bot that books flights", version: "1.0.0", url: "https://flight.example.com", protocol_version: "0.3.0", icon_url: "https://flight.example.com/icon.png", documentation_url: "https://flight.example.com/docs", preferred_transport: "HTTP+JSON", default_input_modes: "text", default_output_modes: "text,structured", streaming: false, push_notifications: true)
-invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_2", skill_id: "book_flight", skill_name: "Book Flight", skill_description: "Book airline tickets", skill_tags: "travel,flight,booking", skill_examples: "Book a flight to Paris")
+invoke SageoIdentityLogic.RegisterAgent(name: "FlightBot", description: "A bot that books flights", version: "1.0.0", url: "https://flight.example.com", protocol_version: "0.3.0", default_input_modes: "[\"text\"]", default_output_modes: "[\"text\",\"structured\"]", streaming: false, push_notifications: true, state_transition_history: true, icon_url: "https://flight.example.com/icon.png", documentation_url: "https://flight.example.com/docs", preferred_transport: "HTTP+JSON")
+invoke SageoIdentityLogic.AddSkill(sageo_id: "agent_2", skill_id: "book_flight", skill_name: "Book Flight", skill_description: "Book airline tickets", skill_tags: "travel,flight,booking", skill_examples: "[\"Book a flight to Paris\"]", skill_input_modes: "[\"text\"]", skill_output_modes: "[\"text\",\"structured\"]")
 invoke SageoIdentityLogic.GetAgentCount()
 invoke SageoIdentityLogic.GetAllAgentIds()
 invoke SageoIdentityLogic.GetAgentByUrl(url: "https://weather.example.com")
 wipe default.sender
 set default.sender agent1
 invoke SageoIdentityLogic.SetAgentStatus(sageo_id: "agent_1", status: "PAUSED")
-invoke SageoIdentityLogic.GetAgentById(sageo_id: "agent_1")
+invoke SageoIdentityLogic.GetAgentProfile(sageo_id: "agent_1")
 invoke SageoIdentityLogic.GetAllAgentIds()
-invoke SageoIdentityLogic.UpdateAgentCard(sageo_id: "agent_1", name: "WeatherBot v2", description: "Updated weather bot with more features", version: "2.0.0", url: "https://weather.example.com", protocol_version: "0.3.0", icon_url: "https://weather.example.com/icon.png", documentation_url: "https://weather.example.com/docs", preferred_transport: "GRPC", default_input_modes: "text,voice,image", default_output_modes: "text,voice", streaming: true, push_notifications: true)
-invoke SageoIdentityLogic.GetAgentById(sageo_id: "agent_1")
+invoke SageoIdentityLogic.UpdateAgentCard(sageo_id: "agent_1", name: "WeatherBot v2", description: "Updated weather bot with more features", version: "2.0.0", url: "https://weather.example.com", protocol_version: "0.3.0", default_input_modes: "[\"text\",\"voice\",\"image\"]", default_output_modes: "[\"text\",\"voice\"]", streaming: true, push_notifications: true, state_transition_history: true, icon_url: "https://weather.example.com/icon.png", documentation_url: "https://weather.example.com/docs", preferred_transport: "GRPC")
+invoke SageoIdentityLogic.GetAgentCard(sageo_id: "agent_1")
+invoke SageoIdentityLogic.GetAgentProfile(sageo_id: "agent_1")
