@@ -7,25 +7,210 @@ import { getConfig } from '../lib/config.js';
 
 const router = Router();
 
-// Placeholder routes - will be implemented later
-router.get('/', (req, res) => {
-  requireContract('identity');
-  res.json([]);
+// Helper: Fetch complete agent profile with card and skills
+async function fetchFullAgentProfile(sageoId: string, identityAddress: string, config: any): Promise<any> {
+  const [profileResult, cardResult, skillsResult] = await Promise.all([
+    readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageoId),
+    readLogic(config, identityAddress, 'GetAgentCard', 'identity', sageoId),
+    readLogic(config, identityAddress, 'GetAgentSkills', 'identity', sageoId)
+  ]);
+
+  const profileData = profileResult as any;
+  const cardData = cardResult as any;
+  const skillsData = skillsResult as any;
+
+  // Check for not found
+  if (profileData.error?.error === 'map key does not exist') return null;
+  if (profileData.output?.found === false) return null;
+
+  // Extract profile
+  const profile = profileData.output?.profile ?? profileData.profile ?? profileData;
+
+  // Extract and merge card with skills
+  let card = cardData.output?.card ?? cardData.card ?? cardData;
+  const skills = skillsData.output?.skills ?? skillsData.skills ?? [];
+  card = { ...card, skills };
+
+  return { ...profile, agent_card: card };
+}
+
+// Helper: Simple fuzzy match score (case-insensitive contains)
+function fuzzyScore(text: string, query: string): number {
+  if (!text || !query) return 0;
+  const lower = text.toLowerCase();
+  const q = query.toLowerCase();
+  if (lower === q) return 100;
+  if (lower.includes(q)) return 50 + (q.length / lower.length) * 30;
+  // Check word matches
+  const words = q.split(/\s+/);
+  let score = 0;
+  for (const w of words) {
+    if (lower.includes(w)) score += 20;
+  }
+  return score;
+}
+
+// GET /agents - List agents with filtering and pagination
+router.get('/', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+
+    // Parse query params
+    const status = req.query.status as string | undefined;
+    const streaming = req.query.streaming as string | undefined;
+    const tags = req.query.tags as string | undefined;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    // Fetch all agent IDs
+    const idsResult = await readLogic(config, identityAddress, 'GetAllAgentIds', 'identity') as any;
+    const ids: string[] = idsResult?.output?.ids ?? idsResult?.ids ?? [];
+
+    // Fetch all agent profiles in parallel
+    const profilePromises = ids.map(id => fetchFullAgentProfile(id, identityAddress, config));
+    const allProfiles = (await Promise.all(profilePromises)).filter(p => p !== null);
+
+    // Apply filters
+    let filtered = allProfiles;
+
+    if (status) {
+      filtered = filtered.filter(p => p.status === status.toUpperCase());
+    }
+
+    if (streaming !== undefined) {
+      const wantStreaming = streaming === 'true';
+      filtered = filtered.filter(p => p.agent_card?.capabilities?.streaming === wantStreaming);
+    }
+
+    if (tags) {
+      const tagList = tags.split(',').map(t => t.trim().toLowerCase());
+      filtered = filtered.filter(p => {
+        const skills = p.agent_card?.skills ?? [];
+        return skills.some((s: any) => {
+          const skillTags = (s.tags || '').toLowerCase().split(',').map((t: string) => t.trim());
+          return tagList.some(t => skillTags.includes(t));
+        });
+      });
+    }
+
+    // Pagination
+    const paginated = filtered.slice(offset, offset + limit);
+
+    res.json(paginated);
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get('/search', (req, res) => {
-  requireContract('identity');
-  res.json([]);
+// GET /agents/search - Search agents by query
+router.get('/search', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+
+    const q = req.query.q as string;
+    if (!q) {
+      return res.status(400).json({ error: 'Query parameter "q" is required' });
+    }
+    const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
+
+    // Fetch all agents
+    const idsResult = await readLogic(config, identityAddress, 'GetAllAgentIds', 'identity') as any;
+    const ids: string[] = idsResult?.output?.ids ?? idsResult?.ids ?? [];
+
+    const profilePromises = ids.map(id => fetchFullAgentProfile(id, identityAddress, config));
+    const allProfiles = (await Promise.all(profilePromises)).filter(p => p !== null);
+
+    // Score and rank by relevance
+    const scored = allProfiles.map(p => {
+      let score = 0;
+      score += fuzzyScore(p.agent_card?.name || '', q);
+      score += fuzzyScore(p.agent_card?.description || '', q) * 0.8;
+
+      // Check skills
+      const skills = p.agent_card?.skills ?? [];
+      for (const s of skills) {
+        score += fuzzyScore(s.name || '', q) * 0.6;
+        score += fuzzyScore(s.description || '', q) * 0.4;
+        score += fuzzyScore(s.tags || '', q) * 0.5;
+      }
+      return { profile: p, score };
+    });
+
+    // Filter out zero scores and sort by score descending
+    const results = scored
+      .filter(s => s.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit)
+      .map(s => s.profile);
+
+    res.json(results);
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get('/by-skill/:skill_id', (req, res) => {
-  requireContract('identity');
-  res.json([]);
+// GET /agents/by-skill/:skill_id - Find agents by skill ID
+router.get('/by-skill/:skill_id', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+    const skillId = req.params.skill_id;
+    const limit = Math.min(parseInt(req.query.limit as string) || 50, 100);
+
+    // Fetch all agents
+    const idsResult = await readLogic(config, identityAddress, 'GetAllAgentIds', 'identity') as any;
+    const ids: string[] = idsResult?.output?.ids ?? idsResult?.ids ?? [];
+
+    const profilePromises = ids.map(id => fetchFullAgentProfile(id, identityAddress, config));
+    const allProfiles = (await Promise.all(profilePromises)).filter(p => p !== null);
+
+    // Filter by skill ID
+    const matching = allProfiles.filter(p => {
+      const skills = p.agent_card?.skills ?? [];
+      return skills.some((s: any) => s.id === skillId);
+    });
+
+    res.json(matching.slice(0, limit));
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get('/by-url', (req, res) => {
-  requireContract('identity');
-  res.json(null);
+// GET /agents/by-url - Find agent by URL
+router.get('/by-url', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+    const url = req.query.url as string;
+
+    if (!url) {
+      return res.status(400).json({ error: 'Query parameter "url" is required' });
+    }
+
+    // Call contract method GetAgentByUrl
+    const result = await readLogic(config, identityAddress, 'GetAgentByUrl', 'identity', url) as any;
+
+    // Check for not found
+    if (result.error?.error === 'map key does not exist') {
+      return res.json(null);
+    }
+    if (result.output?.found === false) {
+      return res.json(null);
+    }
+
+    // Extract sageo_id from profile and fetch full profile
+    const profile = result.output?.profile ?? result.profile ?? result;
+    if (profile?.sageo_id) {
+      const fullProfile = await fetchFullAgentProfile(profile.sageo_id, identityAddress, config);
+      return res.json(fullProfile);
+    }
+
+    res.json(profile);
+  } catch (error) {
+    next(error);
+  }
 });
 
 // GET /:sageo_id/ping - Ping endpoint for agent (must come before /:sageo_id/card and /:sageo_id)
