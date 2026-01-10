@@ -1,9 +1,17 @@
 import express, { Request, Response, NextFunction } from 'express';
+import cors from 'cors';
 import agentsRouter from './routes/agents.js';
 import interactionsRouter from './routes/interactions.js';
 import { AppError } from './lib/errors.js';
 
 const app = express();
+
+// CORS middleware - allow frontend to access API
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+}));
 
 // JSON body parser middleware
 app.use(express.json());

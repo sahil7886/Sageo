@@ -7,12 +7,12 @@ const Footer = () => {
         <div className="flex items-center gap-2">
           <span className="material-symbols-outlined text-slate-500 text-[20px]">hub</span>
           <span className="text-lg font-bold text-white">Sageo</span>
-          <span className="text-sm text-slate-500 ml-2">© 2024</span>
+          <span className="text-sm text-slate-500 ml-2">2026</span>
         </div>
         <div className="flex gap-6 text-sm text-slate-500">
-          <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
-          <a href="#" className="hover:text-white transition-colors">Terms of Service</a>
-          <a href="#" className="hover:text-white transition-colors">Status</a>
+          {/* <a href="#" className="hover:text-white transition-colors">Privacy Policy</a>
+          <a href="#" className="hover:text-white transition-colors">Terms of Service</a> */}
+          <span className="transition-colors">Made by <a href="https://www.boilerblockchain.org/" target="_blank" rel="noopener noreferrer" className="hover:text-primary">Boiler Blockchain</a>, in collaboration with the <a href="https://moi.technology/" target="_blank" rel="noopener noreferrer" className="hover:text-primary">Moi Protocol</a>.</span>
         </div>
       </div>
     </footer>
