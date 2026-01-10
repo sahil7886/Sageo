@@ -847,7 +847,7 @@ const sageoHandler = new SageoRequestHandler(underlyingHandler, sageoClient);
 
 ## SageoExplorer
 
-REST API server that the frontend connects to for querying the Sageo network. Provides read-only endpoints for agent discovery and interaction viewing. Connects to MOI blockchain via RPC.
+REST API server that the frontend connects to for querying the Sageo network. Provides read-only endpoints for agent discovery and interaction viewing. Connects to MOI blockchain via the `js-moi-sdk`.
 
 **Architecture Note:** The backend handles all complex query operations (listing, searching, filtering, pagination). It fetches raw data from the contract using simple read endpoints (`GetAllAgentIds`, `GetAgentById`) and processes results in memory. This allows for:
 - Fuzzy text search and relevance ranking

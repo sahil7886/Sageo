@@ -149,7 +149,9 @@ endpoint dynamic AddSkill(
 
     success = true
 
-// get agent by sageo_id
+// get agent by sageo_id (Original implementation)
+// Note: This fails on some PISA versions due to varray serialization issues.
+// Use GetAgentCard or GetAgentDetails instead if this fails.
 endpoint static GetAgentById(sageo_id String) -> (profile AgentProfile, found Bool):
     memory result AgentProfile
     memory was_found Bool = false
@@ -193,6 +195,31 @@ endpoint static GetAgentById(sageo_id String) -> (profile AgentProfile, found Bo
             result.skills = skills
 
     profile = result
+    found = was_found
+
+// Get only the AgentCard part (Workaround for complex struct issues)
+endpoint static GetAgentCard(sageo_id String) -> (card AgentCard, found Bool):
+    memory result AgentCard
+    memory was_found Bool = false
+
+    observe agents <- SageoIdentityLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            // copy card
+            result.name = agents[sageo_id].agent_card.name
+            result.description = agents[sageo_id].agent_card.description
+            result.version = agents[sageo_id].agent_card.version
+            result.url = agents[sageo_id].agent_card.url
+            result.protocol_version = agents[sageo_id].agent_card.protocol_version
+            result.icon_url = agents[sageo_id].agent_card.icon_url
+            result.documentation_url = agents[sageo_id].agent_card.documentation_url
+            result.preferred_transport = agents[sageo_id].agent_card.preferred_transport
+            result.default_input_modes = agents[sageo_id].agent_card.default_input_modes
+            result.default_output_modes = agents[sageo_id].agent_card.default_output_modes
+            result.streaming = agents[sageo_id].agent_card.streaming
+            result.push_notifications = agents[sageo_id].agent_card.push_notifications
+
+    card = result
     found = was_found
 
 // get agent by URL - iterates through all agents to find by URL

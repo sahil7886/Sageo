@@ -1,70 +1,86 @@
 import { Config } from './config.js';
 import { ApiError } from './errors.js';
+import { getProvider, getLogicDriver } from './moi-client.js';
+import fs from 'fs';
+import path from 'path';
+import { LogicManifest } from 'js-moi-sdk';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Cache for logic manifests
+const manifestCache: Map<string, LogicManifest.Manifest> = new Map();
 
 /**
- * Calls a read-only method on a MOI logic contract
+ * Loads a logic manifest from the compiled YAML file
+ */
+function loadManifest(contractName: 'identity' | 'interaction'): LogicManifest.Manifest {
+  const cacheKey = contractName;
+  
+  if (manifestCache.has(cacheKey)) {
+    return manifestCache.get(cacheKey)!;
+  }
+
+  const manifestPath =
+    contractName === 'identity'
+      ? path.resolve(__dirname, '../../../moi/SageoIdentityLogic/sageoidentitylogic.yaml')
+      : path.resolve(__dirname, '../../../moi/SageoInteractionLogic/sageointeractionlogic.yaml');
+
+  if (!fs.existsSync(manifestPath)) {
+    throw new ApiError(
+      500,
+      'CHAIN_ERROR',
+      `Contract manifest not found at ${manifestPath}. Run: cd moi/${
+        contractName === 'identity' ? 'SageoIdentityLogic' : 'SageoInteractionLogic'
+      } && coco compile .`
+    );
+  }
+
+  const manifestYaml = fs.readFileSync(manifestPath, 'utf-8');
+  const manifest = LogicManifest.fromYAML(manifestYaml);
+  manifestCache.set(cacheKey, manifest);
+  
+  return manifest;
+}
+
+/**
+ * Calls a read-only method on a MOI logic contract using js-moi-sdk
  */
 export async function readLogic(
   config: Config,
   logicAddress: string,
   methodName: string,
+  contractType: 'identity' | 'interaction',
   ...args: unknown[]
 ): Promise<unknown> {
   try {
-    const response = await fetch(config.MOI_RPC_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: 1,
-        method: 'moi_readLogic',
-        params: {
-          address: logicAddress,
-          method: methodName,
-          args: args,
-        },
-      }),
-    });
+    // Get the provider
+    const provider = getProvider();
 
-    if (!response.ok) {
-      throw new ApiError(
-        500,
-        'CHAIN_ERROR',
-        `MOI RPC request failed with status ${response.status}`
-      );
-    }
+    // Load the manifest for this contract
+    const manifest = loadManifest(contractType);
 
-    const data = (await response.json()) as {
-      jsonrpc?: string;
-      id?: number;
-      error?: { code?: number; message?: string; data?: unknown };
-      result?: unknown;
-    };
+    // Create a logic driver instance (read-only, no wallet needed)
+    const logicDriver = await provider.getLogicDriver(logicAddress, manifest);
 
-    // Handle JSON-RPC error response
-    if (data.error) {
-      throw new ApiError(
-        500,
-        'CHAIN_ERROR',
-        `MOI RPC error: ${data.error.message || 'Unknown error'}`
-      );
-    }
+    // Call the routine
+    const result = await logicDriver.routines[methodName](...args);
 
-    // Return the result, handling null/undefined
-    return data.result ?? null;
+    return result ?? null;
   } catch (error) {
     // Re-throw ApiError as-is
     if (error instanceof ApiError) {
       throw error;
     }
 
-    // Wrap other errors (network errors, JSON parsing, etc.)
+    // Wrap other errors
     throw new ApiError(
       500,
       'CHAIN_ERROR',
-      `Failed to call MOI contract: ${error instanceof Error ? error.message : 'Unknown error'}`
+      `Failed to call MOI contract method ${methodName}: ${
+        error instanceof Error ? error.message : 'Unknown error'
+      }`
     );
   }
 }

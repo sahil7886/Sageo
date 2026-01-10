@@ -20,7 +20,7 @@ export function loadConfig(): Config {
   const isProduction = nodeEnv === 'production';
 
   // MOI_RPC_URL is always required
-  const moiRpcUrl = process.env.MOI_RPC_URL;
+  const moiRpcUrl = process.env.MOI_RPC_URL || 'https://voyage-rpc.moi.technology/devnet/';
   if (!moiRpcUrl || moiRpcUrl.trim() === '') {
     throw new ConfigError('Missing required environment variable: MOI_RPC_URL');
   }

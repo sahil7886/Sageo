@@ -1,6 +1,7 @@
 import app from './app.js';
 import { loadConfig } from './lib/config.js';
 import { initializeDeps } from './lib/deps.js';
+import { initializeMOI } from './lib/moi-client.js';
 
 const config = (() => {
   try {
@@ -14,6 +15,24 @@ const config = (() => {
 
 // Initialize dependencies
 const deps = initializeDeps(config);
+
+// Initialize MOI SDK
+(async () => {
+  try {
+    // Use provided mnemonic (UNSAFE - hardcoded for testing!)
+    const mnemonic =
+      process.env.MOI_MNEMONIC ||
+      'repair cycle monitor satisfy warfare forest decorate reveal update economy pizza lift';
+    await initializeMOI(mnemonic);
+    console.log('✅ MOI SDK initialized');
+  } catch (error) {
+    console.warn(
+      '⚠️  MOI SDK initialization warning:',
+      error instanceof Error ? error.message : 'Unknown error'
+    );
+    console.warn('   Read operations may not work properly');
+  }
+})();
 
 // Log configuration (redact any potential secrets)
 console.log('Configuration loaded:');
