@@ -41,11 +41,10 @@ router.get('/recent', async (req, res, next) => {
       0
     ) as any;
 
-    const interactions = result?.records || result || [];
-    // Ensure array
-    const list = Array.isArray(interactions) ? interactions : (interactions.records || []);
+    // Static endpoints return { output: { records: [...], total: N }, error: null }
+    const interactions = result?.output?.records || result?.records || [];
 
-    res.json({ interactions: list });
+    res.json({ interactions });
   } catch (error) {
     next(error);
   }
@@ -67,12 +66,13 @@ router.get('/:interaction_id', async (req, res, next) => {
       'interaction',
       interaction_id
     ) as any;
-
-    if (!result || !result.found) {
-      throw new ApiError(404, 'Interaction not found');
+    // Static endpoints return { output: { record: {...}, found: bool }, error: null }
+    const output = result?.output || result;
+    if (!output || !output.found) {
+      throw new ApiError(404, 'NOT_FOUND', 'Interaction not found');
     }
 
-    res.json(result.record || result);
+    res.json(output.record || result);
   } catch (error) {
     next(error);
   }
@@ -92,15 +92,16 @@ router.get('/:interaction_id/verify', async (req, res, next) => {
       'interaction',
       interaction_id
     ) as any;
-
-    if (!result || !result.found) {
-      throw new ApiError(404, 'Interaction not found');
+    // Static endpoints return { output: { record: {...}, found: bool }, error: null }
+    const output = result?.output || result;
+    if (!output || !output.found) {
+      throw new ApiError(404, 'NOT_FOUND', 'Interaction not found');
     }
 
     res.json({
       verified: true,
-      on_chain_hash: result.record.request_hash,
-      timestamp: result.record.timestamp
+      on_chain_hash: output.record.request_hash,
+      timestamp: output.record.timestamp
     });
   } catch (error) {
     next(error);

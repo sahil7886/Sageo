@@ -1,11 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { fetchAgentProfile, fetchAgentCard, AgentProfile as AgentProfileType, AgentCard } from '../lib/api';
+import {
+  fetchAgentProfile,
+  fetchAgentCard,
+  fetchAgentInteractions,
+  fetchAgentStats,
+  AgentProfile as AgentProfileType,
+  AgentCard,
+  InteractionRecord,
+  AgentInteractionStats
+} from '../lib/api';
+
+// Helper to format relative time (handles both Unix seconds and counter values)
+const formatRelativeTime = (timestamp: number): string => {
+  // If timestamp is very small (< year 2000), it's likely a counter value, not a real timestamp
+  if (timestamp < 946684800) {
+    return `#${timestamp}`;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - timestamp;
+
+  if (diff < 0) return 'just now'; // Future timestamp (clock skew)
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(timestamp * 1000).toLocaleDateString();
+};
 
 const AgentProfile = () => {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<AgentProfileType | null>(null);
   const [card, setCard] = useState<AgentCard | null>(null);
+  const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
+  const [stats, setStats] = useState<AgentInteractionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -17,13 +46,17 @@ const AgentProfile = () => {
       setError(null);
 
       try {
-        const [profileData, cardData] = await Promise.all([
+        const [profileData, cardData, interactionsData, statsData] = await Promise.all([
           fetchAgentProfile(id),
-          fetchAgentCard(id)
+          fetchAgentCard(id),
+          fetchAgentInteractions(id, 5, 0).catch(() => ({ interactions: [], total: 0 })),
+          fetchAgentStats(id).catch(() => null)
         ]);
 
         setProfile(profileData);
         setCard(cardData);
+        setInteractions(interactionsData.interactions || []);
+        setStats(statsData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load agent');
       } finally {
@@ -211,33 +244,62 @@ const AgentProfile = () => {
             <div className="flex flex-col">
               <span className="text-text-secondary text-sm font-medium mb-1">Success Rate</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-white">99.8%</span>
-                <span className="text-green-500 text-xs font-bold flex items-center"><span className="material-symbols-outlined text-[14px]">trending_up</span> +0.2%</span>
+                {stats ? (
+                  <>
+                    <span className="text-3xl font-bold text-white">
+                      {stats.total_requests_sent > 0
+                        ? ((stats.success_count / stats.total_requests_sent) * 100).toFixed(1)
+                        : '0'}%
+                    </span>
+                    {stats.success_count > 0 && (
+                      <span className="text-green-500 text-xs font-bold flex items-center">
+                        <span className="material-symbols-outlined text-[14px]">check_circle</span>
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <span className="text-3xl font-bold text-white">--</span>
+                )}
               </div>
             </div>
             <div className="bg-primary/10 p-2 rounded-lg text-primary"><span className="material-symbols-outlined">health_and_safety</span></div>
           </div>
           <div className="w-full bg-surface-border rounded-full h-2 overflow-hidden">
-            <div className="bg-primary h-2 rounded-full" style={{ width: '99.8%' }}></div>
+            <div
+              className="bg-primary h-2 rounded-full"
+              style={{ width: stats && stats.total_requests_sent > 0 ? `${(stats.success_count / stats.total_requests_sent) * 100}%` : '0%' }}
+            ></div>
           </div>
-          <p className="text-text-secondary text-xs mt-3">Based on last 10k interactions</p>
+          <p className="text-text-secondary text-xs mt-3">
+            {stats ? `${stats.success_count} successful of ${stats.total_requests_sent} requests` : 'No data'}
+          </p>
         </div>
 
         <div className="bg-surface-dark border border-surface-border rounded-xl p-5 flex flex-col justify-between h-full shadow-sm">
           <div className="flex justify-between items-start mb-2">
             <div className="flex flex-col">
               <span className="text-text-secondary text-sm font-medium mb-1">Total Requests</span>
-              <div className="flex items-baseline gap-2"><span className="text-3xl font-bold text-white">1.2M</span></div>
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold text-white">
+                  {stats ? stats.total_requests_sent + stats.total_requests_received : 0}
+                </span>
+              </div>
             </div>
             <div className="bg-primary/10 p-2 rounded-lg text-primary"><span className="material-symbols-outlined">bar_chart</span></div>
           </div>
-          {/* Mock Chart */}
-          <div className="flex items-end gap-1 h-10 w-full mt-2 opacity-60">
-            {[30, 50, 40, 70, 60, 80, 65, 90].map((h, i) => (
-              <div key={i} className={`flex-1 bg-primary${i === 7 ? '' : `/${h + 10}`} rounded-t-sm`} style={{ height: `${h}%` }}></div>
-            ))}
+          <div className="grid grid-cols-2 gap-2 mt-2">
+            <div className="text-xs">
+              <span className="text-text-secondary">Sent: </span>
+              <span className="text-white font-medium">{stats?.total_requests_sent || 0}</span>
+            </div>
+            <div className="text-xs">
+              <span className="text-text-secondary">Received: </span>
+              <span className="text-white font-medium">{stats?.total_requests_received || 0}</span>
+            </div>
           </div>
-          <p className="text-text-secondary text-xs mt-3">Daily Avg: 45k requests</p>
+          <p className="text-text-secondary text-xs mt-3">
+            {stats?.total_responses_sent || 0} responses sent
+          </p>
         </div>
 
         <div className="bg-surface-dark border border-surface-border rounded-xl p-5 flex flex-col justify-between h-full shadow-sm">
@@ -245,20 +307,31 @@ const AgentProfile = () => {
             <div className="flex flex-col">
               <span className="text-text-secondary text-sm font-medium mb-1">Network Reach</span>
               <div className="flex items-baseline gap-2">
-                <span className="text-3xl font-bold text-white">45</span>
-                <span className="text-text-secondary text-sm font-normal">Unique Wallets</span>
+                <span className="text-3xl font-bold text-white">{stats?.unique_counterparties || 0}</span>
+                <span className="text-text-secondary text-sm font-normal">Unique Agents</span>
               </div>
             </div>
             <div className="bg-primary/10 p-2 rounded-lg text-primary"><span className="material-symbols-outlined">hub</span></div>
           </div>
           <div className="flex -space-x-2 overflow-hidden mt-1">
-            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-surface-dark bg-blue-500"></div>
-            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-surface-dark bg-purple-500"></div>
-            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-surface-dark bg-teal-500"></div>
-            <div className="inline-block h-8 w-8 rounded-full ring-2 ring-surface-dark bg-orange-500"></div>
-            <div className="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-surface-dark bg-slate-700 text-white text-[10px] font-bold">+41</div>
+            {[...Array(Math.min(stats?.unique_counterparties || 0, 4))].map((_, i) => (
+              <div
+                key={i}
+                className={`inline-block h-8 w-8 rounded-full ring-2 ring-surface-dark ${['bg-blue-500', 'bg-purple-500', 'bg-teal-500', 'bg-orange-500'][i]
+                  }`}
+              ></div>
+            ))}
+            {(stats?.unique_counterparties || 0) > 4 && (
+              <div className="flex items-center justify-center h-8 w-8 rounded-full ring-2 ring-surface-dark bg-slate-700 text-white text-[10px] font-bold">
+                +{(stats?.unique_counterparties || 0) - 4}
+              </div>
+            )}
           </div>
-          <p className="text-text-secondary text-xs mt-3">High diversity score</p>
+          <p className="text-text-secondary text-xs mt-3">
+            {stats?.last_interaction_at
+              ? `Last active: ${formatRelativeTime(stats.last_interaction_at)}`
+              : 'No interactions yet'}
+          </p>
         </div>
       </section>
 
@@ -286,27 +359,34 @@ const AgentProfile = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {[
-                    { id: '0x8b2...a9d', intent: 'Asset Swap', time: '2 mins ago', status: '200 OK', statusColor: 'green' },
-                    { id: '0x7c1...b3e', intent: 'Liquidity Add', time: '15 mins ago', status: '200 OK', statusColor: 'green' },
-                    { id: '0x9c3...f2a', intent: 'Data Query', time: '42 mins ago', status: '400 Err', statusColor: 'red' },
-                    { id: '0x5a1...c8d', intent: 'Risk Check', time: '1 hr ago', status: '200 OK', statusColor: 'green' },
-                    { id: '0x2b4...e1f', intent: 'Asset Swap', time: '3 hrs ago', status: '200 OK', statusColor: 'green' },
-                  ].map((row, i) => (
-                    <tr key={i} className="hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4 font-mono text-primary cursor-pointer hover:underline">{row.id}</td>
-                      <td className="px-6 py-4 text-white">{row.intent}</td>
-                      <td className="px-6 py-4 text-text-secondary">{row.time}</td>
-                      <td className="px-6 py-4 text-right">
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${row.statusColor}-900/30 text-${row.statusColor}-400 border border-${row.statusColor}-900/50`}>{row.status}</span>
+                  {interactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">
+                        No interactions recorded yet
                       </td>
                     </tr>
-                  ))}
+                  ) : (
+                    interactions.map((row) => {
+                      const statusColor = row.status_code >= 200 && row.status_code < 300 ? 'green' : 'red';
+                      return (
+                        <tr key={row.interaction_id} className="hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4 font-mono text-primary cursor-pointer hover:underline">{row.interaction_id}</td>
+                          <td className="px-6 py-4 text-white">{row.intent}</td>
+                          <td className="px-6 py-4 text-text-secondary">{formatRelativeTime(row.timestamp)}</td>
+                          <td className="px-6 py-4 text-right">
+                            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${statusColor}-900/30 text-${statusColor}-400 border border-${statusColor}-900/50`}>
+                              {row.status_code} {row.status_code >= 200 && row.status_code < 300 ? 'OK' : 'Err'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
             <div className="px-6 py-3 border-t border-surface-border bg-[#15181c] text-center">
-              <button className="text-xs text-text-secondary hover:text-white transition-colors">Load more interactions</button>
+              <span className="text-xs text-text-secondary">{interactions.length} interactions shown</span>
             </div>
           </div>
         </div>
@@ -374,9 +454,9 @@ const AgentProfile = () => {
               </button>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </div >
+      </div >
+    </div >
   );
 };
 

@@ -633,7 +633,7 @@ elements:
   kind: callable
   data:
     name: GetInteraction
-    mode: dynamic
+    mode: static
     kind: invoke
     accepts:
     - slot: 0
@@ -747,7 +747,7 @@ elements:
   kind: callable
   data:
     name: ListInteractionsByAgent
-    mode: dynamic
+    mode: static
     kind: invoke
     accepts:
     - slot: 0
@@ -943,7 +943,7 @@ elements:
   kind: callable
   data:
     name: GetAgentInteractionStats
-    mode: dynamic
+    mode: static
     kind: invoke
     accepts:
     - slot: 0
@@ -1032,7 +1032,7 @@ elements:
   kind: callable
   data:
     name: ListRecentInteractions
-    mode: dynamic
+    mode: static
     kind: invoke
     accepts:
     - slot: 0

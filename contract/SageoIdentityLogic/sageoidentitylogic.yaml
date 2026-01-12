@@ -326,6 +326,9 @@ elements:
     - slot: 13
       label: wallet_address
       type: string
+    - slot: 14
+      label: timestamp
+      type: u64
     returns:
     - slot: 0
       label: sageo_id
@@ -341,59 +344,57 @@ elements:
       - JOIN $0 $3 $4
       - DISPER $1 $2
       - STORE $1
-      - LLOAD $1 &0
-      - GATHER $2 $1
-      - DUMP $1
       - LDPTR1 $1 0xe
       - MAKE $1 $1
-      - OBTAIN $3 &7
-      - SETFLD $1 &0 $3
-      - OBTAIN $3 &8
-      - SETFLD $1 &1 $3
-      - OBTAIN $3 &9
-      - SETFLD $1 &2 $3
-      - LDPTR1 $3 0xf
-      - MAKE $3 $3
-      - OBTAIN $4 &0
-      - SETFLD $3 &0 $4
-      - OBTAIN $4 &1
-      - SETFLD $3 &1 $4
-      - OBTAIN $4 &2
-      - SETFLD $3 &2 $4
-      - OBTAIN $4 &3
-      - SETFLD $3 &3 $4
-      - OBTAIN $4 &4
-      - SETFLD $3 &4 $4
-      - OBTAIN $4 &5
-      - SETFLD $3 &5 $4
-      - OBTAIN $4 &6
-      - SETFLD $3 &6 $4
-      - COPY $4 $1
-      - SETFLD $3 &7 $4
+      - OBTAIN $2 &7
+      - SETFLD $1 &0 $2
+      - OBTAIN $2 &8
+      - SETFLD $1 &1 $2
+      - OBTAIN $2 &9
+      - SETFLD $1 &2 $2
+      - LDPTR1 $2 0xf
+      - MAKE $2 $2
+      - OBTAIN $3 &0
+      - SETFLD $2 &0 $3
+      - OBTAIN $3 &1
+      - SETFLD $2 &1 $3
+      - OBTAIN $3 &2
+      - SETFLD $2 &2 $3
+      - OBTAIN $3 &3
+      - SETFLD $2 &3 $3
+      - OBTAIN $3 &4
+      - SETFLD $2 &4 $3
+      - OBTAIN $3 &5
+      - SETFLD $2 &5 $3
+      - OBTAIN $3 &6
+      - SETFLD $2 &6 $3
+      - COPY $3 $1
+      - SETFLD $2 &7 $3
       - OBTAIN $1 &a
-      - SETFLD $3 &9 $1
+      - SETFLD $2 &9 $1
       - OBTAIN $1 &b
-      - SETFLD $3 &a $1
+      - SETFLD $2 &a $1
       - OBTAIN $1 &c
-      - SETFLD $3 &b $1
+      - SETFLD $2 &b $1
       - LDPTR1 $1 0x11
       - MAKE $1 $1
-      - COPY $4 $0
-      - SETFLD $1 &0 $4
-      - LDPTR1 $5 0x1
-      - LMAKE $4 $5
-      - SETFLD $1 &1 $4
-      - OBTAIN $4 &d
-      - SETFLD $1 &2 $4
-      - LDPTR1 $5 0x2
-      - LMAKE $4 $5
-      - SETFLD $1 &3 $4
-      - COPY $4 $2
-      - SETFLD $1 &4 $4
-      - COPY $4 $2
-      - SETFLD $1 &5 $4
-      - COPY $2 $3
-      - SETFLD $1 &6 $2
+      - COPY $3 $0
+      - SETFLD $1 &0 $3
+      - LDPTR1 $4 0x1
+      - LMAKE $3 $4
+      - SETFLD $1 &1 $3
+      - OBTAIN $3 &d
+      - SETFLD $1 &2 $3
+      - LDPTR1 $4 0x2
+      - LMAKE $3 $4
+      - SETFLD $1 &3 $3
+      - OBTAIN $4 &e
+      - COPY $3 $4
+      - SETFLD $1 &4 $3
+      - COPY $3 $4
+      - SETFLD $1 &5 $3
+      - COPY $3 $2
+      - SETFLD $1 &6 $3
       - LLOAD $2 &1
       - GENKEY $3 $2 $0
       - DISPER $3 $1
@@ -1180,6 +1181,9 @@ elements:
     - slot: 13
       label: preferred_transport
       type: string
+    - slot: 14
+      label: timestamp
+      type: u64
     returns:
     - slot: 0
       label: success
@@ -1257,129 +1261,125 @@ elements:
       - LMAKE $0 $0
       - THROW $0
       - DEST
-      - PMAKE $0 &5
-      - LLOAD $1 &0
-      - GATHER $2 $1
-      - COPY $0 $2
-      - DUMP $1
-      - LLOAD $1 &1
-      - OBTAIN $2 &0
-      - GENKEY $3 $1 $2
+      - LLOAD $0 &1
+      - OBTAIN $1 &0
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &0
+      - OBTAIN $5 &1
+      - DISPER $4 $5
+      - SETFLD $3 &0 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &1
+      - OBTAIN $5 &2
+      - DISPER $4 $5
+      - SETFLD $3 &1 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &2
+      - OBTAIN $5 &3
+      - DISPER $4 $5
+      - SETFLD $3 &2 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &3
+      - OBTAIN $5 &4
+      - DISPER $4 $5
+      - SETFLD $3 &3 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &4
+      - OBTAIN $5 &5
+      - DISPER $4 $5
+      - SETFLD $3 &4 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &5
+      - OBTAIN $5 &6
+      - DISPER $4 $5
+      - SETFLD $3 &5 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
       - GETFLD $4 $3 &6
+      - OBTAIN $5 &7
+      - DISPER $4 $5
+      - SETFLD $3 &6 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &7
       - GETFLD $5 $4 &0
-      - OBTAIN $6 &1
+      - OBTAIN $6 &8
       - DISPER $5 $6
       - SETFLD $4 &0 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
+      - SETFLD $3 &7 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &7
       - GETFLD $5 $4 &1
-      - OBTAIN $6 &2
+      - OBTAIN $6 &9
       - DISPER $5 $6
       - SETFLD $4 &1 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
+      - SETFLD $3 &7 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &7
       - GETFLD $5 $4 &2
-      - OBTAIN $6 &3
+      - OBTAIN $6 &a
       - DISPER $5 $6
       - SETFLD $4 &2 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &3
-      - OBTAIN $6 &4
-      - DISPER $5 $6
-      - SETFLD $4 &3 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &4
-      - OBTAIN $6 &5
-      - DISPER $5 $6
-      - SETFLD $4 &4 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &5
-      - OBTAIN $6 &6
-      - DISPER $5 $6
-      - SETFLD $4 &5 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &6
-      - OBTAIN $6 &7
-      - DISPER $5 $6
-      - SETFLD $4 &6 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &7
-      - GETFLD $6 $5 &0
-      - OBTAIN $7 &8
-      - DISPER $6 $7
-      - SETFLD $5 &0 $6
-      - SETFLD $4 &7 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &7
-      - GETFLD $6 $5 &1
-      - OBTAIN $7 &9
-      - DISPER $6 $7
-      - SETFLD $5 &1 $6
-      - SETFLD $4 &7 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &7
-      - GETFLD $6 $5 &2
-      - OBTAIN $7 &a
-      - DISPER $6 $7
-      - SETFLD $5 &2 $6
-      - SETFLD $4 &7 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &9
-      - OBTAIN $6 &b
-      - DISPER $5 $6
-      - SETFLD $4 &9 $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &a
-      - OBTAIN $6 &c
-      - DISPER $5 $6
-      - SETFLD $4 &a $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &6
-      - GETFLD $5 $4 &b
-      - OBTAIN $6 &d
-      - DISPER $5 $6
-      - SETFLD $4 &b $5
-      - SETFLD $3 &6 $4
-      - SETKEY $1 $2 $3
-      - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
-      - DISPER $4 $0
-      - SETFLD $3 &5 $4
-      - SETKEY $1 $2 $3
-      - STORE $1
+      - SETFLD $3 &7 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &9
+      - OBTAIN $5 &b
+      - DISPER $4 $5
+      - SETFLD $3 &9 $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &a
+      - OBTAIN $5 &c
+      - DISPER $4 $5
+      - SETFLD $3 &a $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &6
+      - GETFLD $4 $3 &b
+      - OBTAIN $5 &d
+      - DISPER $4 $5
+      - SETFLD $3 &b $4
+      - SETFLD $2 &6 $3
+      - SETKEY $0 $1 $2
+      - GENKEY $2 $0 $1
+      - GETFLD $3 $2 &5
+      - OBTAIN $4 &e
+      - DISPER $3 $4
+      - SETFLD $2 &5 $3
+      - SETKEY $0 $1 $2
+      - STORE $0
       - PMAKE $0 &1
       - NOT $0 $0
       - YIELD $0 &0
@@ -1408,6 +1408,9 @@ elements:
     - slot: 1
       label: status
       type: string
+    - slot: 2
+      label: timestamp
+      type: u64
     returns:
     - slot: 0
       label: success
@@ -1517,24 +1520,20 @@ elements:
       - LMAKE $0 $0
       - THROW $0
       - DEST
-      - PMAKE $0 &5
-      - LLOAD $2 &0
-      - GATHER $3 $2
-      - COPY $0 $3
-      - DUMP $2
-      - LLOAD $2 &1
-      - OBTAIN $3 &0
-      - GENKEY $4 $2 $3
-      - GETFLD $5 $4 &3
-      - DISPER $5 $1
-      - SETFLD $4 &3 $5
-      - SETKEY $2 $3 $4
-      - GENKEY $1 $2 $3
-      - GETFLD $4 $1 &5
-      - DISPER $4 $0
-      - SETFLD $1 &5 $4
-      - SETKEY $2 $3 $1
-      - STORE $2
+      - LLOAD $0 &1
+      - OBTAIN $2 &0
+      - GENKEY $3 $0 $2
+      - GETFLD $4 $3 &3
+      - DISPER $4 $1
+      - SETFLD $3 &3 $4
+      - SETKEY $0 $2 $3
+      - GENKEY $1 $0 $2
+      - GETFLD $3 $1 &5
+      - OBTAIN $4 &2
+      - DISPER $3 $4
+      - SETFLD $1 &5 $3
+      - SETKEY $0 $2 $1
+      - STORE $0
       - PMAKE $0 &1
       - NOT $0 $0
       - YIELD $0 &0

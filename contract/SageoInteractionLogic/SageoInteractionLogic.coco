@@ -186,7 +186,7 @@ endpoint dynamic LogResponse(
     record = result
 
 // lookup a single interaction by id (Dynamic to bypass devnet read-only limitation)
-endpoint dynamic GetInteraction(ix_id String) -> (record InteractionRecord, found Bool):
+endpoint static GetInteraction(ix_id String) -> (record InteractionRecord, found Bool):
     memory result InteractionRecord
     memory was_found Bool = false
     observe interactions <- SageoInteractionLogic.Logic.interactions:
@@ -211,7 +211,7 @@ endpoint dynamic GetInteraction(ix_id String) -> (record InteractionRecord, foun
     found = was_found
 
 // get paginated interactions for an agent (newest first)
-endpoint dynamic ListInteractionsByAgent(
+endpoint static ListInteractionsByAgent(
     agent_identifier Identifier,
     limit U64,
     offset U64
@@ -258,7 +258,7 @@ endpoint dynamic ListInteractionsByAgent(
     total = total_count
 
 // get an agent's cached stats
-endpoint dynamic GetAgentInteractionStats(
+endpoint static GetAgentInteractionStats(
     agent_identifier Identifier
 ) -> (stats AgentInteractionStats, found Bool):
     memory result AgentInteractionStats
@@ -283,7 +283,7 @@ endpoint dynamic GetAgentInteractionStats(
     found = was_found
 
 // get paginated recent interactions (newest first)
-endpoint dynamic ListRecentInteractions(
+endpoint static ListRecentInteractions(
     limit U64,
     offset U64
 ) -> (records []InteractionRecord, total U64):

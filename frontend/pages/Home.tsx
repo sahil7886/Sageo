@@ -1,14 +1,56 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { fetchRecentInteractions, InteractionRecord } from '../lib/api';
 
-const recentInteractions = [
-  { name: 'Agent-Alpha', id: '#8821', type: 'Data Query', typeColor: 'emerald', tx: '0x8f72...2a91', time: '2s ago', logo: 'bg-gradient-to-br from-blue-500 to-cyan-400' },
-  { name: 'TradingBot_X', id: '#1094', type: 'Token Swap', typeColor: 'indigo', tx: '0x3c11...9b22', time: '5s ago', logo: 'bg-gradient-to-br from-purple-500 to-pink-400' },
-  { name: 'Oracle_V2', id: '#5592', type: 'Identity Verify', typeColor: 'blue', tx: '0x1d44...441a', time: '12s ago', logo: 'bg-gradient-to-br from-orange-500 to-amber-400' },
-  { name: 'Sentinel_AI', id: '#9901', type: 'Alert Trigger', typeColor: 'rose', tx: '0x99a1...bb02', time: '32s ago', logo: 'bg-gradient-to-br from-slate-600 to-slate-500' },
-];
+// Helper to format relative time (handles both Unix seconds and counter values)
+const formatRelativeTime = (timestamp: number): string => {
+  // If timestamp is very small (< year 2000), it's likely a counter value, not a real timestamp
+  if (timestamp < 946684800) {
+    return `#${timestamp}`;
+  }
+
+  const now = Math.floor(Date.now() / 1000);
+  const diff = now - timestamp;
+
+  if (diff < 0) return 'just now'; // Future timestamp (clock skew)
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  if (diff < 604800) return `${Math.floor(diff / 86400)}d ago`;
+  return new Date(timestamp * 1000).toLocaleDateString();
+};
+
+// Helper to get color based on intent
+const getIntentColor = (intent: string): string => {
+  const colors: Record<string, string> = {
+    'greeting': 'emerald',
+    'payment': 'indigo',
+    'query': 'blue',
+    'alert': 'rose',
+    'data': 'cyan',
+    'swap': 'purple',
+  };
+  return colors[intent.toLowerCase()] || 'slate';
+};
 
 const Home = () => {
+  const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadInteractions = async () => {
+      try {
+        const data = await fetchRecentInteractions(4);
+        setInteractions(data);
+      } catch (err) {
+        console.error('Failed to load interactions:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadInteractions();
+  }, []);
+
   return (
     <>
       <main className="flex-grow flex flex-col items-center justify-center relative w-full overflow-hidden">
@@ -99,49 +141,76 @@ const Home = () => {
               <table className="w-full min-w-[800px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-surface-border bg-black/20">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Agent Name</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Interaction Type</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Tx Hash</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Agent</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Intent</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Request Hash</th>
                     <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4 text-right">Timestamp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {recentInteractions.map((item, idx) => (
-                    <tr key={idx} className="group hover:bg-white/5 transition-colors">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className={`size-8 rounded ${item.logo} flex items-center justify-center text-white font-bold text-xs shadow-lg`}>{item.name[0]}</div>
-                          <div>
-                            <Link to={`/agent/${item.id.replace('#', '')}`} className="text-sm font-medium text-white hover:text-primary transition-colors">{item.name}</Link>
-                            <div className="text-xs text-slate-400">ID: {item.id}</div>
-                          </div>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                        <div className="flex items-center justify-center gap-2">
+                          <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
+                          Loading interactions...
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-${item.typeColor}-500/10 text-${item.typeColor}-400 border border-${item.typeColor}-500/20`}>
-                          <span className={`w-1.5 h-1.5 rounded-full bg-${item.typeColor}-400`}></span>
-                          {item.type}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-slate-400 font-mono text-xs">
-                          <span>{item.tx}</span>
-                          <button className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary">
-                            <span className="material-symbols-outlined text-[16px]">content_copy</span>
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <span className="text-sm text-slate-400">{item.time}</span>
                       </td>
                     </tr>
-                  ))}
+                  ) : interactions.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                        No recent interactions found
+                      </td>
+                    </tr>
+                  ) : (
+                    interactions.map((item) => {
+                      const color = getIntentColor(item.intent);
+                      return (
+                        <tr key={item.interaction_id} className="group hover:bg-white/5 transition-colors">
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-3">
+                              <div className="size-8 rounded bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-xs shadow-lg">
+                                {item.caller_sageo_id[0]?.toUpperCase() || 'A'}
+                              </div>
+                              <div>
+                                <Link to={`/agent/${item.caller_sageo_id}`} className="text-sm font-medium text-white hover:text-primary transition-colors">
+                                  {item.caller_sageo_id}
+                                </Link>
+                                <div className="text-xs text-slate-400">ID: {item.interaction_id}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-${color}-500/10 text-${color}-400 border border-${color}-500/20`}>
+                              <span className={`w-1.5 h-1.5 rounded-full bg-${color}-400`}></span>
+                              {item.intent}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4">
+                            <div className="flex items-center gap-2 text-slate-400 font-mono text-xs">
+                              <span>{item.request_hash.slice(0, 8)}...{item.request_hash.slice(-4)}</span>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(item.request_hash)}
+                                className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
+                              >
+                                <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                              </button>
+                            </div>
+                          </td>
+                          <td className="px-6 py-4 text-right">
+                            <span className="text-sm text-slate-400">{formatRelativeTime(item.timestamp)}</span>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
             {/* Footer of table */}
             <div className="px-6 py-3 bg-black/20 border-t border-surface-border flex items-center justify-between">
-              <span className="text-xs text-slate-500">Showing last 4 interactions</span>
+              <span className="text-xs text-slate-500">Showing {interactions.length} recent interactions</span>
               <Link to="/discovery" className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1">
                 View all transactions <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
               </Link>

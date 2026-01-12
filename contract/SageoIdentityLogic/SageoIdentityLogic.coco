@@ -86,18 +86,14 @@ endpoint dynamic RegisterAgent(
     icon_url String,
     documentation_url String,
     preferred_transport String,
-    wallet_address String
+    wallet_address String,
+    timestamp U64
 ) -> (sageo_id String):
     // generate unique sageo_id
     memory new_id String
     mutate counter <- SageoIdentityLogic.Logic.agent_counter:
         counter += 1
         new_id = "agent_" + String(counter)
-
-    // get current timestamp (using counter as proxy)
-    memory timestamp U64
-    observe counter <- SageoIdentityLogic.Logic.agent_counter:
-        timestamp = counter
 
     // build capabilities
     memory caps AgentCapabilities
@@ -179,7 +175,7 @@ endpoint dynamic AddSkill(
 
     success = true
 
-// Get agent profile metadata (WITHOUT agent_card to prevent overfetching)
+// Get agent profile metadata (WITHOUT agent_card)
 // Use GetAgentCard to fetch the card separately
 endpoint static GetAgentProfile(sageo_id String) -> (profile AgentProfileMeta, found Bool):
     memory result AgentProfileMeta
@@ -314,7 +310,8 @@ endpoint dynamic UpdateAgentCard(
     state_transition_history Bool,
     icon_url String,
     documentation_url String,
-    preferred_transport String
+    preferred_transport String,
+    timestamp U64
 ) -> (success Bool):
     // check if agent exists
     storage existing AgentProfile
@@ -336,11 +333,6 @@ endpoint dynamic UpdateAgentCard(
     if !is_owner:
         throw "Not agent owner"
 
-    // update agent card fields
-    memory timestamp U64
-    observe counter <- SageoIdentityLogic.Logic.agent_counter:
-        timestamp = counter
-
     mutate agents <- SageoIdentityLogic.Logic.agents:
         agents[sageo_id].agent_card.name = name
         agents[sageo_id].agent_card.description = description
@@ -360,7 +352,7 @@ endpoint dynamic UpdateAgentCard(
     success = true
 
 // set agent status (owner only)
-endpoint dynamic SetAgentStatus(sageo_id String, status String) -> (success Bool):
+endpoint dynamic SetAgentStatus(sageo_id String, status String, timestamp U64) -> (success Bool):
     // validate status
     if status != "ACTIVE" && status != "PAUSED" && status != "DEPRECATED":
         throw "Invalid status"
@@ -384,11 +376,6 @@ endpoint dynamic SetAgentStatus(sageo_id String, status String) -> (success Bool
 
     if !is_owner:
         throw "Not agent owner"
-
-    // update status
-    memory timestamp U64
-    observe counter <- SageoIdentityLogic.Logic.agent_counter:
-        timestamp = counter
 
     mutate agents <- SageoIdentityLogic.Logic.agents:
         agents[sageo_id].status = status

@@ -106,3 +106,70 @@ export async function fetchAgentByUrl(url: string): Promise<AgentProfile | null>
     if (!res.ok) throw new Error(`Failed to fetch agent by URL: ${res.status}`);
     return res.json();
 }
+
+// ============== INTERACTION TYPES ==============
+
+export interface InteractionRecord {
+    interaction_id: string;
+    caller_sageo_id: string;
+    callee_sageo_id: string;
+    request_hash: string;
+    response_hash: string;
+    intent: string;
+    status_code: number;
+    timestamp: number;
+    a2a_context_id?: string;
+    a2a_task_id?: string;
+    a2a_message_id?: string;
+    end_user_id?: string;
+    end_user_session_id?: string;
+}
+
+export interface AgentInteractionStats {
+    total_requests_sent: number;
+    total_requests_received: number;
+    total_responses_sent: number;
+    success_count: number;
+    unique_counterparties: number;
+    last_interaction_at: number;
+}
+
+// ============== INTERACTION API FUNCTIONS ==============
+
+export async function fetchRecentInteractions(limit: number = 10): Promise<InteractionRecord[]> {
+    const res = await fetch(`${API_BASE_URL}/interactions/recent?limit=${limit}`);
+    if (!res.ok) throw new Error(`Failed to fetch recent interactions: ${res.status}`);
+    const data = await res.json();
+    return data.interactions || [];
+}
+
+export async function fetchInteraction(interactionId: string): Promise<InteractionRecord | null> {
+    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Failed to fetch interaction: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchAgentInteractions(
+    sageoId: string,
+    limit: number = 20,
+    offset: number = 0
+): Promise<{ interactions: InteractionRecord[]; total: number }> {
+    const res = await fetch(`${API_BASE_URL}/agents/${sageoId}/interactions?limit=${limit}&offset=${offset}`);
+    if (!res.ok) throw new Error(`Failed to fetch agent interactions: ${res.status}`);
+    return res.json();
+}
+
+export async function fetchAgentStats(sageoId: string): Promise<AgentInteractionStats | null> {
+    const res = await fetch(`${API_BASE_URL}/agents/${sageoId}/stats`);
+    if (!res.ok) throw new Error(`Failed to fetch agent stats: ${res.status}`);
+    const data = await res.json();
+    return data.stats || null;
+}
+
+export async function verifyInteraction(interactionId: string): Promise<{ verified: boolean; on_chain_hash: string; timestamp: number } | null> {
+    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}/verify`);
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`Failed to verify interaction: ${res.status}`);
+    return res.json();
+}

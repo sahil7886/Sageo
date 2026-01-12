@@ -162,7 +162,8 @@ async function main(): Promise<boolean> {
         agent.icon_url,
         agent.documentation_url,
         agent.preferred_transport,
-        address.toString() // Ensure string format
+        address.toString(), // Ensure string format
+        Math.floor(Date.now() / 1000) // Unix timestamp in seconds
       );
 
       console.log(`⏳ Waiting for confirmation... (Hash: ${ix.hash})`);

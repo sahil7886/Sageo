@@ -379,9 +379,10 @@ router.get('/:sageo_id/interactions', async (req, res, next) => {
       { fuelLimit: 100000, fuelPrice: 1 }
     ) as any;
 
-    // result: { records: [...], total: ... }
-    const interactions = result?.records || [];
-    const total = result?.total || 0;
+    // Static endpoints return { output: { records: [...], total: N }, error: null }
+    const output = result?.output || result;
+    const interactions = output?.records || [];
+    const total = output?.total || 0;
 
     res.json({
       interactions,
@@ -430,7 +431,9 @@ router.get('/:sageo_id/stats', async (req, res, next) => {
       agentAddress
     ) as any;
 
-    if (!result || !result.found) {
+    // Static endpoints return { output: { stats: {...}, found: bool }, error: null }
+    const output = result?.output || result;
+    if (!output || !output.found) {
       return res.json({
         stats: {
           total_requests_sent: 0,
@@ -443,7 +446,7 @@ router.get('/:sageo_id/stats', async (req, res, next) => {
       });
     }
 
-    res.json({ stats: result.stats });
+    res.json({ stats: output.stats });
   } catch (error) {
     next(error);
   }
