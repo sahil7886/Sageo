@@ -37,6 +37,7 @@ class AgentCard:
 class AgentProfileMeta:
     field sageo_id String
     field owner String
+    field wallet_address String
     field status String         // "ACTIVE" | "PAUSED" | "DEPRECATED"
     field created_at U64
     field updated_at U64
@@ -45,6 +46,7 @@ class AgentProfileMeta:
 class AgentProfile:
     field sageo_id String
     field owner String
+    field wallet_address String
     field status String
     field created_at U64
     field updated_at U64
@@ -83,7 +85,8 @@ endpoint dynamic RegisterAgent(
     state_transition_history Bool,
     icon_url String,
     documentation_url String,
-    preferred_transport String
+    preferred_transport String,
+    wallet_address String
 ) -> (sageo_id String):
     // generate unique sageo_id
     memory new_id String
@@ -120,6 +123,7 @@ endpoint dynamic RegisterAgent(
     memory new_profile AgentProfile
     new_profile.sageo_id = new_id
     new_profile.owner = "sender"
+    new_profile.wallet_address = wallet_address
     new_profile.status = "ACTIVE"
     new_profile.created_at = timestamp
     new_profile.updated_at = timestamp
@@ -186,6 +190,7 @@ endpoint static GetAgentProfile(sageo_id String) -> (profile AgentProfileMeta, f
         if was_found:
             result.sageo_id = agents[sageo_id].sageo_id
             result.owner = agents[sageo_id].owner
+            result.wallet_address = agents[sageo_id].wallet_address
             result.status = agents[sageo_id].status
             result.created_at = agents[sageo_id].created_at
             result.updated_at = agents[sageo_id].updated_at
@@ -273,6 +278,7 @@ endpoint static GetAgentByUrl(url String) -> (profile AgentProfileMeta, found Bo
     observe agents <- SageoIdentityLogic.Logic.agents:
         result.sageo_id = agents[result_id].sageo_id
         result.owner = agents[result_id].owner
+        result.wallet_address = agents[result_id].wallet_address
         result.status = agents[result_id].status
         result.created_at = agents[result_id].created_at
         result.updated_at = agents[result_id].updated_at

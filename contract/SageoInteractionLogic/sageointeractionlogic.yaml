@@ -128,7 +128,6 @@ elements:
 - ptr: 13
   deps:
   - 11
-  - 12
   kind: state
   data:
     mode: logic
@@ -145,7 +144,6 @@ elements:
 - ptr: 14
   deps:
   - 11
-  - 12
   kind: state
   data:
     mode: actor
@@ -157,11 +155,26 @@ elements:
       label: agent_interactions
       type: '[]string'
     - slot: 2
-      label: stats
-      type: class.AgentInteractionStats
-    - slot: 3
       label: counterparties
       type: '[]string'
+    - slot: 3
+      label: stats_total_requests_sent
+      type: u64
+    - slot: 4
+      label: stats_total_requests_received
+      type: u64
+    - slot: 5
+      label: stats_total_responses_sent
+      type: u64
+    - slot: 6
+      label: stats_success_count
+      type: u64
+    - slot: 7
+      label: stats_unique_counterparties
+      type: u64
+    - slot: 8
+      label: stats_last_interaction_at
+      type: u64
 - ptr: 15
   deps:
   - 13
@@ -186,7 +199,7 @@ elements:
   data:
     name: Enlist
     mode: dynamic
-    kind: enlist
+    kind: invoke
     accepts:
     - slot: 0
       label: sageo_id
@@ -366,94 +379,21 @@ elements:
       - APPEND $e $2
       - STORE $e
       - ORIGIN $5
-      - ALOAD $e $5 &2
-      - GETFLD $f $e &0
-      - PMAKE $10 &5
-      - INCR $10
-      - ADD $10 $f $10
-      - DISPER $f $10
-      - SETFLD $e &0 $f
-      - GETFLD $f $e &5
-      - DISPER $f $8
-      - SETFLD $e &5 $f
+      - ALOAD $e $5 &3
+      - GATHER $f $e
+      - INCR $f
+      - DISPER $e $f
+      - STORE $e
+      - ORIGIN $5
+      - ALOAD $e $5 &8
+      - GATHER $f $e
+      - COPY $f $8
+      - DISPER $e $f
       - STORE $e
       - PMAKE $5 &1
       - NOT $5 $5
-      - ORIGIN $e
-      - ALOAD $f $e &3
-      - SIZE $10 $f
-      - LDPTR1 $11 0xa
-      - MAKE $11 $11
-      - PMAKE $12 &5
-      - PMAKE $13 &5
-      - DEST
-      - EQ $14 $10 $13
-      - LDPTR1 $15 0x93
-      - JUMPI $15 $14
-      - APPEND $11 $12
-      - INCR $12
-      - DECR $10
-      - LDPTR1 $15 0x8a
-      - JUMP $15
-      - DEST
-      - PMAKE $10 &5
-      - SIZE $12 $11
-      - DEST
-      - LT $13 $10 $12
-      - NOT $13 $13
-      - LDPTR1 $14 0xa7
-      - JUMPI $14 $13
-      - GETIDX $13 $f $10
-      - EQ $13 $13 $1
-      - NOT $13 $13
-      - LDPTR1 $15 0xa2
-      - JUMPI $15 $13
-      - PMAKE $13 &1
-      - COPY $5 $13
-      - DEST
-      - DEST
-      - INCR $10
-      - LDPTR1 $14 0x96
-      - JUMP $14
-      - DEST
-      - DUMP $f
-      - NOT $e $5
-      - LDPTR1 $f 0xb9
-      - JUMPI $f $e
-      - ORIGIN $e
-      - ALOAD $f $e &3
-      - APPEND $f $1
-      - STORE $f
-      - ORIGIN $e
-      - ALOAD $f $e &2
-      - GETFLD $10 $f &4
-      - PMAKE $11 &5
-      - INCR $11
-      - ADD $11 $10 $11
-      - DISPER $10 $11
-      - SETFLD $f &4 $10
-      - STORE $f
-      - DEST
-      - OBTAIN $e &0
-      - ALOAD $f $e &1
-      - APPEND $f $2
-      - STORE $f
-      - OBTAIN $e &0
-      - ALOAD $f $e &2
-      - GETFLD $10 $f &1
-      - PMAKE $11 &5
-      - INCR $11
-      - ADD $11 $10 $11
-      - DISPER $10 $11
-      - SETFLD $f &1 $10
-      - GETFLD $10 $f &5
-      - DISPER $10 $8
-      - SETFLD $f &5 $10
-      - STORE $f
-      - PMAKE $e &1
-      - NOT $e $e
-      - OBTAIN $f &0
-      - ALOAD $10 $f &3
+      - ORIGIN $f
+      - ALOAD $10 $f &2
       - SIZE $11 $10
       - LDPTR1 $12 0xa
       - MAKE $12 $12
@@ -461,12 +401,12 @@ elements:
       - PMAKE $14 &5
       - DEST
       - EQ $15 $11 $14
-      - LDPTR1 $16 0xdc
+      - LDPTR1 $16 0x93
       - JUMPI $16 $15
       - APPEND $12 $13
       - INCR $13
       - DECR $11
-      - LDPTR1 $16 0xd3
+      - LDPTR1 $16 0x8a
       - JUMP $16
       - DEST
       - PMAKE $11 &5
@@ -474,38 +414,105 @@ elements:
       - DEST
       - LT $14 $11 $13
       - NOT $14 $14
-      - LDPTR1 $15 0xf0
+      - LDPTR1 $15 0xa7
       - JUMPI $15 $14
       - GETIDX $14 $10 $11
-      - EQ $14 $14 $0
+      - EQ $14 $14 $1
       - NOT $14 $14
-      - LDPTR1 $16 0xeb
+      - LDPTR1 $16 0xa2
       - JUMPI $16 $14
       - PMAKE $14 &1
-      - COPY $e $14
+      - COPY $5 $14
       - DEST
       - DEST
       - INCR $11
-      - LDPTR1 $15 0xdf
+      - LDPTR1 $15 0x96
       - JUMP $15
       - DEST
       - DUMP $10
+      - NOT $f $5
+      - LDPTR1 $10 0xb6
+      - JUMPI $10 $f
+      - ORIGIN $f
+      - ALOAD $10 $f &2
+      - APPEND $10 $1
+      - STORE $10
+      - ORIGIN $f
+      - ALOAD $10 $f &7
+      - GATHER $11 $10
+      - INCR $11
+      - DISPER $10 $11
+      - STORE $10
+      - DEST
+      - OBTAIN $f &0
+      - ALOAD $11 $f &1
+      - APPEND $11 $2
+      - STORE $11
+      - OBTAIN $f &0
+      - ALOAD $11 $f &4
+      - GATHER $12 $11
+      - INCR $12
+      - DISPER $11 $12
+      - STORE $11
+      - OBTAIN $f &0
+      - ALOAD $e $f &8
+      - GATHER $11 $e
+      - COPY $11 $8
+      - DISPER $e $11
+      - STORE $e
+      - PMAKE $e &1
+      - NOT $e $e
+      - OBTAIN $f &0
+      - ALOAD $11 $f &2
+      - SIZE $12 $11
+      - LDPTR1 $13 0xa
+      - MAKE $13 $13
+      - PMAKE $14 &5
+      - PMAKE $15 &5
+      - DEST
+      - EQ $16 $12 $15
+      - LDPTR1 $17 0xd9
+      - JUMPI $17 $16
+      - APPEND $13 $14
+      - INCR $14
+      - DECR $12
+      - LDPTR1 $17 0xd0
+      - JUMP $17
+      - DEST
+      - PMAKE $12 &5
+      - SIZE $14 $13
+      - DEST
+      - LT $15 $12 $14
+      - NOT $15 $15
+      - LDPTR1 $16 0xed
+      - JUMPI $16 $15
+      - GETIDX $15 $11 $12
+      - EQ $15 $15 $0
+      - NOT $15 $15
+      - LDPTR1 $17 0xe8
+      - JUMPI $17 $15
+      - PMAKE $15 &1
+      - COPY $e $15
+      - DEST
+      - DEST
+      - INCR $12
+      - LDPTR1 $16 0xdc
+      - JUMP $16
+      - DEST
+      - DUMP $11
       - NOT $1 $e
-      - LDPTR2 $3 0x1
+      - LDPTR1 $3 0xfc
       - JUMPI $3 $1
       - OBTAIN $1 &0
-      - ALOAD $3 $1 &3
+      - ALOAD $3 $1 &2
       - APPEND $3 $0
       - STORE $3
       - OBTAIN $0 &0
-      - ALOAD $1 $0 &2
-      - GETFLD $3 $1 &4
-      - PMAKE $4 &5
-      - INCR $4
-      - ADD $4 $3 $4
-      - DISPER $3 $4
-      - SETFLD $1 &4 $3
-      - STORE $1
+      - ALOAD $10 $0 &7
+      - GATHER $1 $10
+      - INCR $1
+      - DISPER $10 $1
+      - STORE $10
       - DEST
       - YIELD $2 &0
     catches: []
@@ -576,44 +583,44 @@ elements:
       - SWAP $1 $3
       - STORE $2
       - ORIGIN $2
-      - ALOAD $3 $2 &2
-      - GETFLD $4 $3 &2
-      - PMAKE $5 &5
-      - INCR $5
-      - ADD $5 $4 $5
-      - DISPER $4 $5
-      - SETFLD $3 &2 $4
-      - GETFLD $4 $3 &5
-      - OBTAIN $5 &3
-      - DISPER $4 $5
-      - SETFLD $3 &5 $4
-      - PMAKE $4 &1
-      - NOT $4 $4
-      - OBTAIN $5 &2
-      - LDPTR1 $6 0x5
-      - LMAKE $6 $6
-      - LT $6 $5 $6
-      - NOT $6 $6
-      - AND $4 $4 $6
-      - NOT $6 $4
-      - LDPTR1 $7 0x3c
-      - JUMPI $7 $6
-      - LDPTR1 $6 0x6
-      - LMAKE $6 $6
-      - LT $5 $5 $6
-      - AND $4 $4 $5
-      - DEST
-      - NOT $4 $4
-      - LDPTR1 $5 0x46
-      - JUMPI $5 $4
-      - GETFLD $4 $3 &3
-      - PMAKE $5 &5
-      - INCR $5
-      - ADD $5 $4 $5
-      - DISPER $4 $5
-      - SETFLD $3 &3 $4
-      - DEST
+      - ALOAD $3 $2 &5
+      - GATHER $4 $3
+      - INCR $4
+      - DISPER $3 $4
       - STORE $3
+      - ORIGIN $2
+      - ALOAD $3 $2 &8
+      - GATHER $4 $3
+      - OBTAIN $5 &3
+      - COPY $4 $5
+      - DISPER $3 $4
+      - STORE $3
+      - PMAKE $2 &1
+      - NOT $2 $2
+      - OBTAIN $3 &2
+      - LDPTR1 $4 0x5
+      - LMAKE $4 $4
+      - LT $4 $3 $4
+      - NOT $4 $4
+      - AND $2 $2 $4
+      - NOT $4 $2
+      - LDPTR1 $5 0x3d
+      - JUMPI $5 $4
+      - LDPTR1 $4 0x6
+      - LMAKE $4 $4
+      - LT $3 $3 $4
+      - AND $2 $2 $3
+      - DEST
+      - NOT $2 $2
+      - LDPTR1 $3 0x47
+      - JUMPI $3 $2
+      - ORIGIN $2
+      - ALOAD $3 $2 &6
+      - GATHER $4 $3
+      - INCR $4
+      - DISPER $3 $4
+      - STORE $3
+      - DEST
       - GATHER $1 $1
       - YIELD $1 &0
       - YIELD $0 &0
@@ -626,7 +633,7 @@ elements:
   kind: callable
   data:
     name: GetInteraction
-    mode: static
+    mode: dynamic
     kind: invoke
     accepts:
     - slot: 0
@@ -645,17 +652,87 @@ elements:
       - MAKE $0 $0
       - LDPTR1 $1 0xb
       - MAKE $1 $1
+      - PMAKE $2 &1
       - LLOAD $3 &1
       - OBTAIN $4 &0
-      - GETKEY $1 $3 $4
-      - GETFLD $4 $1 &0
-      - LDPTR1 $5 0x0
-      - LMAKE $5 $5
-      - EQ $4 $4 $5
-      - NOT $2 $4
+      - GETKEY $5 $3 $4
+      - GETFLD $5 $5 &0
+      - LDPTR1 $6 0x0
+      - LMAKE $6 $6
+      - EQ $5 $5 $6
+      - LDPTR1 $6 0x52
+      - JUMPI $6 $5
+      - PMAKE $5 &1
+      - NOT $5 $5
+      - COPY $2 $5
+      - GETFLD $5 $1 &0
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &0
+      - GATHER $5 $6
+      - SETFLD $1 &0 $5
+      - GETFLD $5 $1 &1
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &1
+      - GATHER $5 $6
+      - SETFLD $1 &1 $5
+      - GETFLD $5 $1 &2
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &2
+      - GATHER $5 $6
+      - SETFLD $1 &2 $5
+      - GETFLD $5 $1 &3
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &3
+      - GATHER $5 $6
+      - SETFLD $1 &3 $5
+      - GETFLD $5 $1 &4
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &4
+      - GATHER $5 $6
+      - SETFLD $1 &4 $5
+      - GETFLD $5 $1 &5
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &5
+      - GATHER $5 $6
+      - SETFLD $1 &5 $5
+      - GETFLD $5 $1 &6
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &6
+      - GATHER $5 $6
+      - SETFLD $1 &6 $5
+      - GETFLD $5 $1 &7
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &7
+      - GATHER $5 $6
+      - SETFLD $1 &7 $5
+      - GETFLD $5 $1 &8
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &8
+      - GATHER $5 $6
+      - SETFLD $1 &8 $5
+      - GETFLD $5 $1 &9
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &9
+      - GATHER $5 $6
+      - SETFLD $1 &9 $5
+      - GETFLD $5 $1 &a
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &a
+      - GATHER $5 $6
+      - SETFLD $1 &a $5
+      - GETFLD $5 $1 &b
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &b
+      - GATHER $5 $6
+      - SETFLD $1 &b $5
+      - GETFLD $5 $1 &c
+      - GETKEY $4 $3 $4
+      - GETFLD $4 $4 &c
+      - GATHER $5 $4
+      - SETFLD $1 &c $5
+      - DEST
       - DUMP $3
-      - GATHER $1 $1
-      - YIELD $1 &0
+      - COPY $0 $1
       - YIELD $2 &1
       - YIELD $0 &0
     catches: []
@@ -670,7 +747,7 @@ elements:
   kind: callable
   data:
     name: ListInteractionsByAgent
-    mode: static
+    mode: dynamic
     kind: invoke
     accepts:
     - slot: 0
@@ -866,7 +943,7 @@ elements:
   kind: callable
   data:
     name: GetAgentInteractionStats
-    mode: static
+    mode: dynamic
     kind: invoke
     accepts:
     - slot: 0
@@ -896,36 +973,245 @@ elements:
       - COPY $2 $5
       - DUMP $4
       - NOT $3 $2
-      - LDPTR1 $4 0x2c
+      - LDPTR1 $4 0x3b
       - JUMPI $4 $3
       - OBTAIN $3 &0
-      - ALOAD $4 $3 &2
-      - GETFLD $5 $1 &0
-      - GETFLD $6 $4 &0
-      - GATHER $5 $6
-      - SETFLD $1 &0 $5
-      - GETFLD $5 $1 &1
-      - GETFLD $6 $4 &1
-      - GATHER $5 $6
-      - SETFLD $1 &1 $5
-      - GETFLD $5 $1 &2
-      - GETFLD $6 $4 &2
-      - GATHER $5 $6
-      - SETFLD $1 &2 $5
-      - GETFLD $5 $1 &3
-      - GETFLD $6 $4 &3
-      - GATHER $5 $6
-      - SETFLD $1 &3 $5
-      - GETFLD $5 $1 &4
-      - GETFLD $6 $4 &4
-      - GATHER $5 $6
-      - SETFLD $1 &4 $5
-      - GETFLD $5 $1 &5
-      - GETFLD $6 $4 &5
-      - GATHER $5 $6
-      - SETFLD $1 &5 $5
+      - ALOAD $4 $3 &3
+      - GATHER $5 $4
+      - GETFLD $6 $1 &0
+      - COPY $6 $5
+      - SETFLD $1 &0 $6
+      - DUMP $4
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &4
+      - GATHER $5 $4
+      - GETFLD $6 $1 &1
+      - COPY $6 $5
+      - SETFLD $1 &1 $6
+      - DUMP $4
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &5
+      - GATHER $5 $4
+      - GETFLD $6 $1 &2
+      - COPY $6 $5
+      - SETFLD $1 &2 $6
+      - DUMP $4
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &6
+      - GATHER $5 $4
+      - GETFLD $6 $1 &3
+      - COPY $6 $5
+      - SETFLD $1 &3 $6
+      - DUMP $4
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &7
+      - GATHER $5 $4
+      - GETFLD $6 $1 &4
+      - COPY $6 $5
+      - SETFLD $1 &4 $6
+      - DUMP $4
+      - OBTAIN $3 &0
+      - ALOAD $4 $3 &8
+      - GATHER $5 $4
+      - GETFLD $6 $1 &5
+      - COPY $6 $5
+      - SETFLD $1 &5 $6
       - DUMP $4
       - DEST
+      - COPY $0 $1
+      - YIELD $2 &1
+      - YIELD $0 &0
+    catches: []
+- ptr: 22
+  deps:
+  - 7
+  - 9
+  - 10
+  - 11
+  - 13
+  kind: callable
+  data:
+    name: ListRecentInteractions
+    mode: dynamic
+    kind: invoke
+    accepts:
+    - slot: 0
+      label: limit
+      type: u64
+    - slot: 1
+      label: offset
+      type: u64
+    returns:
+    - slot: 0
+      label: records
+      type: '[]class.InteractionRecord'
+    - slot: 1
+      label: total
+      type: u64
+    executes:
+      asm:
+      - LDPTR1 $0 0x7
+      - MAKE $0 $0
+      - PMAKE $1 &5
+      - LDPTR1 $2 0x7
+      - VMAKE $1 $2 $1
+      - PMAKE $2 &5
+      - PMAKE $3 &5
+      - LDPTR1 $4 0x9
+      - VMAKE $3 $4 $3
+      - LLOAD $4 &2
+      - SIZE $5 $4
+      - COPY $2 $5
+      - COPY $5 $2
+      - LDPTR1 $6 0xa
+      - MAKE $6 $6
+      - PMAKE $7 &5
+      - PMAKE $8 &5
+      - DEST
+      - EQ $9 $5 $8
+      - LDPTR1 $a 0x1a
+      - JUMPI $a $9
+      - APPEND $6 $7
+      - INCR $7
+      - DECR $5
+      - LDPTR1 $a 0x11
+      - JUMP $a
+      - DEST
+      - PMAKE $5 &5
+      - SIZE $7 $6
+      - DEST
+      - LT $8 $5 $7
+      - NOT $8 $8
+      - LDPTR1 $9 0x28
+      - JUMPI $9 $8
+      - GETIDX $8 $4 $5
+      - APPEND $3 $8
+      - DEST
+      - INCR $5
+      - LDPTR1 $9 0x1d
+      - JUMP $9
+      - DEST
+      - DUMP $4
+      - OBTAIN $4 &1
+      - LT $5 $4 $2
+      - LDPTR1 $6 0x32
+      - JUMPI $6 $5
+      - COPY $0 $1
+      - YIELD $2 &1
+      - YIELD $0 &0
+      - TERM
+      - DEST
+      - SUB $5 $2 $4
+      - OBTAIN $6 &0
+      - GT $7 $5 $6
+      - NOT $7 $7
+      - LDPTR1 $8 0x3a
+      - JUMPI $8 $7
+      - COPY $5 $6
+      - DEST
+      - LLOAD $7 &1
+      - COPY $8 $5
+      - LDPTR1 $9 0xa
+      - MAKE $9 $9
+      - PMAKE $a &5
+      - PMAKE $b &5
+      - DEST
+      - EQ $c $8 $b
+      - LDPTR1 $d 0x4a
+      - JUMPI $d $c
+      - APPEND $9 $a
+      - INCR $a
+      - DECR $8
+      - LDPTR1 $d 0x41
+      - JUMP $d
+      - DEST
+      - PMAKE $8 &5
+      - SIZE $a $9
+      - DEST
+      - LT $b $8 $a
+      - NOT $b $b
+      - LDPTR1 $c 0xa0
+      - JUMPI $c $b
+      - SUB $b $2 $4
+      - PMAKE $d &5
+      - INCR $d
+      - SUB $b $b $d
+      - SUB $b $b $8
+      - GETIDX $b $3 $b
+      - LDPTR1 $d 0xb
+      - MAKE $d $d
+      - GETFLD $e $d &0
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &0
+      - GATHER $e $f
+      - SETFLD $d &0 $e
+      - GETFLD $e $d &1
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &1
+      - GATHER $e $f
+      - SETFLD $d &1 $e
+      - GETFLD $e $d &2
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &2
+      - GATHER $e $f
+      - SETFLD $d &2 $e
+      - GETFLD $e $d &3
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &3
+      - GATHER $e $f
+      - SETFLD $d &3 $e
+      - GETFLD $e $d &4
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &4
+      - GATHER $e $f
+      - SETFLD $d &4 $e
+      - GETFLD $e $d &5
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &5
+      - GATHER $e $f
+      - SETFLD $d &5 $e
+      - GETFLD $e $d &6
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &6
+      - GATHER $e $f
+      - SETFLD $d &6 $e
+      - GETFLD $e $d &7
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &7
+      - GATHER $e $f
+      - SETFLD $d &7 $e
+      - GETFLD $e $d &8
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &8
+      - GATHER $e $f
+      - SETFLD $d &8 $e
+      - GETFLD $e $d &9
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &9
+      - GATHER $e $f
+      - SETFLD $d &9 $e
+      - GETFLD $e $d &a
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &a
+      - GATHER $e $f
+      - SETFLD $d &a $e
+      - GETFLD $e $d &b
+      - GETKEY $f $7 $b
+      - GETFLD $f $f &b
+      - GATHER $e $f
+      - SETFLD $d &b $e
+      - GETFLD $e $d &c
+      - GETKEY $b $7 $b
+      - GETFLD $b $b &c
+      - GATHER $e $b
+      - SETFLD $d &c $e
+      - APPEND $1 $d
+      - DEST
+      - INCR $8
+      - LDPTR1 $c 0x4d
+      - JUMP $c
+      - DEST
+      - DUMP $7
       - COPY $0 $1
       - YIELD $2 &1
       - YIELD $0 &0

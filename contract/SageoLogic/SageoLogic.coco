@@ -1,0 +1,733 @@
+coco SageoLogic
+
+// ============================================================================
+// UNIFIED SAGEO LOGIC - Agent Identity + Interaction Tracking
+// Merges identity and interaction logic for atomic consistency
+// ============================================================================
+
+// AgentSkill represents a capability of an agent (matches A2A spec)
+class AgentSkill:
+    field id String
+    field name String
+    field description String
+    field tags String           // comma-separated or JSON array
+    field examples String       // JSON array as string
+    field input_modes String    // JSON array as string
+    field output_modes String   // JSON array as string
+
+// AgentCapabilities matches A2A AgentCapabilities1
+class AgentCapabilities:
+    field streaming Bool
+    field push_notifications Bool
+    field state_transition_history Bool
+
+// AgentCard matches A2A spec structure
+class AgentCard:
+    field name String
+    field description String
+    field version String
+    field url String
+    field protocol_version String
+    field default_input_modes String    // JSON array as string
+    field default_output_modes String   // JSON array as string
+    field capabilities AgentCapabilities
+    field skills []AgentSkill
+    field icon_url String
+    field documentation_url String
+    field preferred_transport String    // "JSONRPC" | "GRPC" | "HTTP+JSON"
+
+// AgentProfileMeta - profile metadata WITHOUT agent_card to prevent overfetching
+class AgentProfileMeta:
+    field sageo_id String
+    field owner String
+    field wallet_address String
+    field status String         // "ACTIVE" | "PAUSED" | "DEPRECATED"
+    field created_at U64
+    field updated_at U64
+
+// Full AgentProfile for internal storage
+class AgentProfile:
+    field sageo_id String
+    field owner String
+    field wallet_address String
+    field status String
+    field created_at U64
+    field updated_at U64
+    field agent_card AgentCard
+
+// InteractionRecord - proof stored on-chain
+class InteractionRecord:
+    field interaction_id String
+    field caller_sageo_id String
+    field callee_sageo_id String
+    field request_hash String
+    field response_hash String
+    field intent String
+    field status_code I64
+    field timestamp U64
+    field a2a_context_id String
+    field a2a_task_id String
+    field a2a_message_id String
+    field end_user_id String
+    field end_user_session_id String
+
+// AgentInteractionStats - cached stats per agent
+class AgentInteractionStats:
+    field total_requests_sent U64
+    field total_requests_received U64
+    field total_responses_sent U64
+    field success_count U64
+    field unique_counterparties U64
+    field last_interaction_at U64
+
+// ============================================================================
+// STATE
+// ============================================================================
+
+// Global state - registry of all agents and interactions
+state logic:
+    agent_counter U64
+    interaction_counter U64
+    agents Map[String]AgentProfile
+    agent_ids []String
+    interactions Map[String]InteractionRecord
+    interaction_ids []String
+
+// Per-actor state - each participant tracks their owned agents and interactions
+state actor:
+    owned_agents []String
+    is_enlisted Bool
+    // Interaction tracking per actor
+    agent_id String                    // sageo_id of this actor's agent
+    agent_interactions []String        // interaction IDs involving this agent
+    counterparties []String            // unique counterparty sageo_ids
+    // Flattened stats
+    stats_total_requests_sent U64
+    stats_total_requests_received U64
+    stats_total_responses_sent U64
+    stats_success_count U64
+    stats_unique_counterparties U64
+    stats_last_interaction_at U64
+
+// ============================================================================
+// DEPLOYMENT & ENLISTMENT
+// ============================================================================
+
+// Runs once on deploy
+endpoint deploy dynamic Deploy():
+    mutate 0 -> SageoLogic.Logic.agent_counter
+    mutate 0 -> SageoLogic.Logic.interaction_counter
+
+// Enlist to use the registry
+endpoint dynamic Enlist():
+    mutate true -> SageoLogic.Sender.is_enlisted
+
+// ============================================================================
+// AGENT IDENTITY MANAGEMENT
+// ============================================================================
+
+// Register a new agent with full A2A AgentCard metadata
+endpoint dynamic RegisterAgent(
+    name String,
+    description String,
+    version String,
+    url String,
+    protocol_version String,
+    default_input_modes String,
+    default_output_modes String,
+    streaming Bool,
+    push_notifications Bool,
+    state_transition_history Bool,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String,
+    wallet_address String
+) -> (sageo_id String):
+    // Generate unique sageo_id
+    memory new_id String
+    mutate counter <- SageoLogic.Logic.agent_counter:
+        counter += 1
+        new_id = "agent_" + String(counter)
+
+    // Get current timestamp (using counter as proxy)
+    memory timestamp U64
+    observe counter <- SageoLogic.Logic.agent_counter:
+        timestamp = counter
+
+    // Build capabilities
+    memory caps AgentCapabilities
+    caps.streaming = streaming
+    caps.push_notifications = push_notifications
+    caps.state_transition_history = state_transition_history
+
+    // Build agent card
+    memory card AgentCard
+    card.name = name
+    card.description = description
+    card.version = version
+    card.url = url
+    card.protocol_version = protocol_version
+    card.default_input_modes = default_input_modes
+    card.default_output_modes = default_output_modes
+    card.capabilities = caps
+    card.icon_url = icon_url
+    card.documentation_url = documentation_url
+    card.preferred_transport = preferred_transport
+
+    // Build profile
+    memory new_profile AgentProfile
+    new_profile.sageo_id = new_id
+    new_profile.owner = "sender"
+    new_profile.wallet_address = wallet_address
+    new_profile.status = "ACTIVE"
+    new_profile.created_at = timestamp
+    new_profile.updated_at = timestamp
+    new_profile.agent_card = card
+
+    // Store in global map
+    mutate agents <- SageoLogic.Logic.agents:
+        disperse agents[new_id] <- new_profile
+
+    mutate ids <- SageoLogic.Logic.agent_ids:
+        append(ids, new_id)
+
+    // Add to owner's list
+    mutate owned <- SageoLogic.Sender.owned_agents:
+        append(owned, new_id)
+
+    // Auto-enlist for interactions with this sageo_id
+    mutate new_id -> SageoLogic.Sender.agent_id
+
+    sageo_id = new_id
+
+// Add a skill to an agent (owner only)
+endpoint dynamic AddSkill(
+    sageo_id String,
+    skill_id String,
+    skill_name String,
+    skill_description String,
+    skill_tags String,
+    skill_examples String,
+    skill_input_modes String,
+    skill_output_modes String
+) -> (success Bool):
+    // Verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // Build skill
+    memory skill AgentSkill
+    skill.id = skill_id
+    skill.name = skill_name
+    skill.description = skill_description
+    skill.tags = skill_tags
+    skill.examples = skill_examples
+    skill.input_modes = skill_input_modes
+    skill.output_modes = skill_output_modes
+
+    // Add skill to agent's card
+    mutate agents <- SageoLogic.Logic.agents:
+        disperse append(agents[sageo_id].agent_card.skills, skill)
+
+    success = true
+
+// Get agent profile metadata (WITHOUT agent_card)
+endpoint static GetAgentProfile(sageo_id String) -> (profile AgentProfileMeta, found Bool):
+    memory result AgentProfileMeta
+    memory was_found Bool = false
+
+    observe agents <- SageoLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            result.sageo_id = agents[sageo_id].sageo_id
+            result.owner = agents[sageo_id].owner
+            result.wallet_address = agents[sageo_id].wallet_address
+            result.status = agents[sageo_id].status
+            result.created_at = agents[sageo_id].created_at
+            result.updated_at = agents[sageo_id].updated_at
+
+    profile = result
+    found = was_found
+
+// Get the AgentCard for an agent
+endpoint static GetAgentCard(sageo_id String) -> (card AgentCard, found Bool):
+    memory result AgentCard
+    memory was_found Bool = false
+
+    observe agents <- SageoLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            memory caps AgentCapabilities
+            caps.streaming = agents[sageo_id].agent_card.capabilities.streaming
+            caps.push_notifications = agents[sageo_id].agent_card.capabilities.push_notifications
+            caps.state_transition_history = agents[sageo_id].agent_card.capabilities.state_transition_history
+
+            result.name = agents[sageo_id].agent_card.name
+            result.description = agents[sageo_id].agent_card.description
+            result.version = agents[sageo_id].agent_card.version
+            result.url = agents[sageo_id].agent_card.url
+            result.protocol_version = agents[sageo_id].agent_card.protocol_version
+            result.default_input_modes = agents[sageo_id].agent_card.default_input_modes
+            result.default_output_modes = agents[sageo_id].agent_card.default_output_modes
+            result.capabilities = caps
+            result.icon_url = agents[sageo_id].agent_card.icon_url
+            result.documentation_url = agents[sageo_id].agent_card.documentation_url
+            result.preferred_transport = agents[sageo_id].agent_card.preferred_transport
+
+    card = result
+    found = was_found
+
+// Get skills for an agent
+endpoint static GetAgentSkills(sageo_id String) -> (skills []AgentSkill, found Bool):
+    memory result []AgentSkill
+    memory was_found Bool = false
+
+    observe agents <- SageoLogic.Logic.agents:
+        was_found = agents[sageo_id].sageo_id != ""
+        if was_found:
+            for j in range(len(agents[sageo_id].agent_card.skills)):
+                memory skill AgentSkill
+                skill.id = agents[sageo_id].agent_card.skills[j].id
+                skill.name = agents[sageo_id].agent_card.skills[j].name
+                skill.description = agents[sageo_id].agent_card.skills[j].description
+                skill.tags = agents[sageo_id].agent_card.skills[j].tags
+                skill.examples = agents[sageo_id].agent_card.skills[j].examples
+                skill.input_modes = agents[sageo_id].agent_card.skills[j].input_modes
+                skill.output_modes = agents[sageo_id].agent_card.skills[j].output_modes
+                append(result, skill)
+
+    skills = result
+    found = was_found
+
+// Get agent by URL
+endpoint static GetAgentByUrl(url String) -> (profile AgentProfileMeta, found Bool):
+    memory result_id String
+    memory ids []String
+
+    observe agent_ids <- SageoLogic.Logic.agent_ids:
+        for i in range(len(agent_ids)):
+            append(ids, agent_ids[i])
+
+    observe agents <- SageoLogic.Logic.agents:
+        for i in range(len(ids)):
+            if agents[ids[i]].agent_card.url == url:
+                result_id = ids[i]
+
+    if result_id == "":
+        memory empty AgentProfileMeta
+        profile = empty
+        found = false
+        return
+
+    memory result AgentProfileMeta
+    observe agents <- SageoLogic.Logic.agents:
+        result.sageo_id = agents[result_id].sageo_id
+        result.owner = agents[result_id].owner
+        result.wallet_address = agents[result_id].wallet_address
+        result.status = agents[result_id].status
+        result.created_at = agents[result_id].created_at
+        result.updated_at = agents[result_id].updated_at
+
+    profile = result
+    found = true
+
+// Get all agent IDs
+endpoint static GetAllAgentIds() -> (ids []String):
+    memory result []String
+    observe agent_ids <- SageoLogic.Logic.agent_ids:
+        for i in range(len(agent_ids)):
+            append(result, agent_ids[i])
+    ids = result
+
+// Get total number of registered agents
+endpoint static GetAgentCount() -> (count U64):
+    observe agent_ids <- SageoLogic.Logic.agent_ids:
+        count = U64(len(agent_ids))
+
+// Update agent card (owner only)
+endpoint dynamic UpdateAgentCard(
+    sageo_id String,
+    name String,
+    description String,
+    version String,
+    url String,
+    protocol_version String,
+    default_input_modes String,
+    default_output_modes String,
+    streaming Bool,
+    push_notifications Bool,
+    state_transition_history Bool,
+    icon_url String,
+    documentation_url String,
+    preferred_transport String
+) -> (success Bool):
+    // Check if agent exists
+    storage existing AgentProfile
+    memory exists Bool = false
+    observe agents <- SageoLogic.Logic.agents:
+        existing = agents[sageo_id]
+        exists = existing.sageo_id != ""
+
+    if !exists:
+        throw "Agent not found"
+
+    // Verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // Update agent card fields
+    memory timestamp U64
+    observe counter <- SageoLogic.Logic.agent_counter:
+        timestamp = counter
+
+    mutate agents <- SageoLogic.Logic.agents:
+        agents[sageo_id].agent_card.name = name
+        agents[sageo_id].agent_card.description = description
+        agents[sageo_id].agent_card.version = version
+        agents[sageo_id].agent_card.url = url
+        agents[sageo_id].agent_card.protocol_version = protocol_version
+        agents[sageo_id].agent_card.default_input_modes = default_input_modes
+        agents[sageo_id].agent_card.default_output_modes = default_output_modes
+        agents[sageo_id].agent_card.capabilities.streaming = streaming
+        agents[sageo_id].agent_card.capabilities.push_notifications = push_notifications
+        agents[sageo_id].agent_card.capabilities.state_transition_history = state_transition_history
+        agents[sageo_id].agent_card.icon_url = icon_url
+        agents[sageo_id].agent_card.documentation_url = documentation_url
+        agents[sageo_id].agent_card.preferred_transport = preferred_transport
+        agents[sageo_id].updated_at = timestamp
+
+    success = true
+
+// Set agent status (owner only)
+endpoint dynamic SetAgentStatus(sageo_id String, status String) -> (success Bool):
+    // Validate status
+    if status != "ACTIVE" && status != "PAUSED" && status != "DEPRECATED":
+        throw "Invalid status"
+
+    // Check if agent exists
+    storage existing AgentProfile
+    memory exists Bool = false
+    observe agents <- SageoLogic.Logic.agents:
+        existing = agents[sageo_id]
+        exists = existing.sageo_id != ""
+
+    if !exists:
+        throw "Agent not found"
+
+    // Verify ownership
+    memory is_owner Bool = false
+    observe owned <- SageoLogic.Sender.owned_agents:
+        for i in range(len(owned)):
+            if owned[i] == sageo_id:
+                is_owner = true
+
+    if !is_owner:
+        throw "Not agent owner"
+
+    // Update status
+    memory timestamp U64
+    observe counter <- SageoLogic.Logic.agent_counter:
+        timestamp = counter
+
+    mutate agents <- SageoLogic.Logic.agents:
+        agents[sageo_id].status = status
+        agents[sageo_id].updated_at = timestamp
+
+    success = true
+
+// ============================================================================
+// INTERACTION LOGGING
+// ============================================================================
+
+// Set agent_id for interaction tracking (call after RegisterAgent if needed for another wallet)
+endpoint dynamic SetAgentId(sageo_id String):
+    mutate sageo_id -> SageoLogic.Sender.agent_id
+
+// Log a request from caller to callee, returns interaction_id
+endpoint dynamic LogRequest(
+    callee_identifier Identifier,
+    request_hash String,
+    intent String,
+    timestamp U64,
+    a2a_context_id String,
+    a2a_task_id String,
+    a2a_message_id String,
+    end_user_id String,
+    end_user_session_id String
+) -> (interaction_id String):
+    // Check caller has agent_id set
+    memory caller_sageo_id String
+    observe agent_id <- SageoLogic.Sender.agent_id:
+        if agent_id == "":
+            throw "Caller agent_id not set"
+        caller_sageo_id = agent_id
+
+    // Check callee has agent_id set
+    memory callee_sageo_id String
+    memory callee_enlisted Bool = false
+    observe agent_id <- SageoLogic.Actor(callee_identifier).agent_id:
+        if agent_id != "":
+            callee_sageo_id = agent_id
+            callee_enlisted = true
+    if !callee_enlisted:
+        throw "Callee agent_id not set"
+
+    // Generate unique ID
+    memory new_id String
+    mutate counter <- SageoLogic.Logic.interaction_counter:
+        counter += 1
+        new_id = "ix_" + String(counter)
+
+    // Build the record
+    memory record InteractionRecord
+    record.interaction_id = new_id
+    record.caller_sageo_id = caller_sageo_id
+    record.callee_sageo_id = callee_sageo_id
+    record.request_hash = request_hash
+    record.response_hash = ""
+    record.intent = intent
+    record.status_code = -1
+    record.timestamp = timestamp
+    record.a2a_context_id = a2a_context_id
+    record.a2a_task_id = a2a_task_id
+    record.a2a_message_id = a2a_message_id
+    record.end_user_id = end_user_id
+    record.end_user_session_id = end_user_session_id
+
+    // Store in global map
+    mutate interactions <- SageoLogic.Logic.interactions:
+        disperse interactions[new_id] <- record
+
+    mutate ids <- SageoLogic.Logic.interaction_ids:
+        append(ids, new_id)
+
+    // Update caller stats
+    mutate caller_interactions <- SageoLogic.Sender.agent_interactions:
+        append(caller_interactions, new_id)
+
+    mutate s_sent <- SageoLogic.Sender.stats_total_requests_sent:
+        s_sent += 1
+    mutate s_last <- SageoLogic.Sender.stats_last_interaction_at:
+        s_last = timestamp
+
+    // Track unique counterparties for caller
+    memory is_new_counterparty Bool = true
+    observe cp_list <- SageoLogic.Sender.counterparties:
+        for i in range(len(cp_list)):
+            if cp_list[i] == callee_sageo_id:
+                is_new_counterparty = false
+
+    if is_new_counterparty:
+        mutate caller_counterparties <- SageoLogic.Sender.counterparties:
+            append(caller_counterparties, callee_sageo_id)
+        mutate s_unique <- SageoLogic.Sender.stats_unique_counterparties:
+            s_unique += 1
+
+    // Update callee stats
+    mutate callee_interactions <- SageoLogic.Actor(callee_identifier).agent_interactions:
+        append(callee_interactions, new_id)
+
+    mutate c_recv <- SageoLogic.Actor(callee_identifier).stats_total_requests_received:
+        c_recv += 1
+    mutate c_last <- SageoLogic.Actor(callee_identifier).stats_last_interaction_at:
+        c_last = timestamp
+
+    // Track unique counterparties for callee
+    memory is_new_counterparty_callee Bool = true
+    observe cp_list_callee <- SageoLogic.Actor(callee_identifier).counterparties:
+        for i in range(len(cp_list_callee)):
+            if cp_list_callee[i] == caller_sageo_id:
+                is_new_counterparty_callee = false
+
+    if is_new_counterparty_callee:
+        mutate callee_counterparties <- SageoLogic.Actor(callee_identifier).counterparties:
+            append(callee_counterparties, caller_sageo_id)
+        mutate c_unique <- SageoLogic.Actor(callee_identifier).stats_unique_counterparties:
+            c_unique += 1
+
+    interaction_id = new_id
+
+// Complete an interaction with response hash and status code
+endpoint dynamic LogResponse(
+    ix_id String,
+    response_hash String,
+    status_code I64,
+    timestamp U64
+) -> (record InteractionRecord):
+    storage result InteractionRecord
+    mutate interactions <- SageoLogic.Logic.interactions:
+        if interactions[ix_id].interaction_id == "":
+            throw "Interaction not found"
+        interactions[ix_id].response_hash = response_hash
+        interactions[ix_id].status_code = status_code
+        result = interactions[ix_id]
+
+    mutate s_sent <- SageoLogic.Sender.stats_total_responses_sent:
+        s_sent += 1
+    mutate s_last <- SageoLogic.Sender.stats_last_interaction_at:
+        s_last = timestamp
+
+    if status_code >= 200 && status_code < 300:
+        mutate s_success <- SageoLogic.Sender.stats_success_count:
+            s_success += 1
+
+    record = result
+
+// Get a single interaction by ID
+endpoint dynamic GetInteraction(ix_id String) -> (record InteractionRecord, found Bool):
+    memory result InteractionRecord
+    memory was_found Bool = false
+    observe interactions <- SageoLogic.Logic.interactions:
+        if interactions[ix_id].interaction_id != "":
+            was_found = true
+            result.interaction_id = interactions[ix_id].interaction_id
+            result.caller_sageo_id = interactions[ix_id].caller_sageo_id
+            result.callee_sageo_id = interactions[ix_id].callee_sageo_id
+            result.request_hash = interactions[ix_id].request_hash
+            result.response_hash = interactions[ix_id].response_hash
+            result.intent = interactions[ix_id].intent
+            result.status_code = interactions[ix_id].status_code
+            result.timestamp = interactions[ix_id].timestamp
+            result.a2a_context_id = interactions[ix_id].a2a_context_id
+            result.a2a_task_id = interactions[ix_id].a2a_task_id
+            result.a2a_message_id = interactions[ix_id].a2a_message_id
+            result.end_user_id = interactions[ix_id].end_user_id
+            result.end_user_session_id = interactions[ix_id].end_user_session_id
+
+    record = result
+    found = was_found
+
+// Get paginated interactions for an agent (newest first)
+endpoint dynamic ListInteractionsByAgent(
+    agent_identifier Identifier,
+    limit U64,
+    offset U64
+) -> (records []InteractionRecord, total U64):
+    memory result_records []InteractionRecord
+    memory total_count U64 = 0
+    memory ids []String
+
+    observe agent_ids <- SageoLogic.Actor(agent_identifier).agent_interactions:
+        total_count = U64(len(agent_ids))
+        for i in range(total_count):
+            append(ids, agent_ids[i])
+
+    if offset >= total_count:
+        records = result_records
+        total = total_count
+        return
+
+    memory count U64 = total_count - offset
+    if count > limit:
+        count = limit
+
+    observe interactions <- SageoLogic.Logic.interactions:
+        for i in range(count):
+            memory idx U64 = total_count - offset - 1 - i
+            memory id String = ids[idx]
+            memory rec InteractionRecord
+            rec.interaction_id = interactions[id].interaction_id
+            rec.caller_sageo_id = interactions[id].caller_sageo_id
+            rec.callee_sageo_id = interactions[id].callee_sageo_id
+            rec.request_hash = interactions[id].request_hash
+            rec.response_hash = interactions[id].response_hash
+            rec.intent = interactions[id].intent
+            rec.status_code = interactions[id].status_code
+            rec.timestamp = interactions[id].timestamp
+            rec.a2a_context_id = interactions[id].a2a_context_id
+            rec.a2a_task_id = interactions[id].a2a_task_id
+            rec.a2a_message_id = interactions[id].a2a_message_id
+            rec.end_user_id = interactions[id].end_user_id
+            rec.end_user_session_id = interactions[id].end_user_session_id
+            append(result_records, rec)
+
+    records = result_records
+    total = total_count
+
+// Get an agent's cached interaction stats
+endpoint dynamic GetAgentInteractionStats(
+    agent_identifier Identifier
+) -> (stats AgentInteractionStats, found Bool):
+    memory result AgentInteractionStats
+    memory was_found Bool = false
+    observe agent_id <- SageoLogic.Actor(agent_identifier).agent_id:
+        was_found = agent_id != ""
+    if was_found:
+        observe s_sent <- SageoLogic.Actor(agent_identifier).stats_total_requests_sent:
+            result.total_requests_sent = s_sent
+        observe s_recv <- SageoLogic.Actor(agent_identifier).stats_total_requests_received:
+            result.total_requests_received = s_recv
+        observe s_resp <- SageoLogic.Actor(agent_identifier).stats_total_responses_sent:
+            result.total_responses_sent = s_resp
+        observe s_succ <- SageoLogic.Actor(agent_identifier).stats_success_count:
+            result.success_count = s_succ
+        observe s_uniq <- SageoLogic.Actor(agent_identifier).stats_unique_counterparties:
+            result.unique_counterparties = s_uniq
+        observe s_last <- SageoLogic.Actor(agent_identifier).stats_last_interaction_at:
+            result.last_interaction_at = s_last
+
+    stats = result
+    found = was_found
+
+// Get paginated recent interactions (newest first)
+endpoint dynamic ListRecentInteractions(
+    limit U64,
+    offset U64
+) -> (records []InteractionRecord, total U64):
+    memory result_records []InteractionRecord
+    memory total_count U64 = 0
+    memory ids []String
+
+    observe all_ids <- SageoLogic.Logic.interaction_ids:
+        total_count = U64(len(all_ids))
+        for i in range(total_count):
+            append(ids, all_ids[i])
+
+    if offset >= total_count:
+        records = result_records
+        total = total_count
+        return
+
+    memory count U64 = total_count - offset
+    if count > limit:
+        count = limit
+
+    observe interactions <- SageoLogic.Logic.interactions:
+        for i in range(count):
+            memory idx U64 = total_count - offset - 1 - i
+            memory id String = ids[idx]
+            memory rec InteractionRecord
+            rec.interaction_id = interactions[id].interaction_id
+            rec.caller_sageo_id = interactions[id].caller_sageo_id
+            rec.callee_sageo_id = interactions[id].callee_sageo_id
+            rec.request_hash = interactions[id].request_hash
+            rec.response_hash = interactions[id].response_hash
+            rec.intent = interactions[id].intent
+            rec.status_code = interactions[id].status_code
+            rec.timestamp = interactions[id].timestamp
+            rec.a2a_context_id = interactions[id].a2a_context_id
+            rec.a2a_task_id = interactions[id].a2a_task_id
+            rec.a2a_message_id = interactions[id].a2a_message_id
+            rec.end_user_id = interactions[id].end_user_id
+            rec.end_user_session_id = interactions[id].end_user_session_id
+            append(result_records, rec)
+
+    records = result_records
+    total = total_count
+
+// Get total interaction count
+endpoint static GetInteractionCount() -> (count U64):
+    observe interaction_ids <- SageoLogic.Logic.interaction_ids:
+        count = U64(len(interaction_ids))

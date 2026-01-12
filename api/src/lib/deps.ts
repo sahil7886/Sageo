@@ -13,10 +13,11 @@ let deps: Dependencies = {
 };
 
 export function initializeDeps(config: Config): Dependencies {
-  // Prefer hardcoded IDs if available (for now)
+  // Use environment variables if set, otherwise fall back to hardcoded constants from moi-client.ts
+  // This allows development to work without env vars, while production can override via env vars
   deps = {
-    identity: IDENTITY_LOGIC_ID || config.IDENTITY_LOGIC_ADDRESS,
-    interaction: INTERACTION_LOGIC_ID || config.INTERACTION_LOGIC_ADDRESS,
+    identity: config.IDENTITY_LOGIC_ADDRESS || (IDENTITY_LOGIC_ID && IDENTITY_LOGIC_ID.trim() !== '' ? IDENTITY_LOGIC_ID : null),
+    interaction: config.INTERACTION_LOGIC_ADDRESS || (INTERACTION_LOGIC_ID && INTERACTION_LOGIC_ID.trim() !== '' ? INTERACTION_LOGIC_ID : null),
   };
   return deps;
 }
@@ -36,3 +37,4 @@ export function requireContract(name: 'identity' | 'interaction'): string {
   }
   return address;
 }
+

@@ -48,8 +48,26 @@ echo "10. GET /agents/by-url?url=https://nonexistent.example.com"
 curl -s "$BASE_URL/agents/by-url?url=https://nonexistent.example.com" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Result: {\"null\" if d is None else \"found\"}')"
 
 # Test 11: GET /agents/:sageo_id/card (existing endpoint)
-echo "11. GET /agents/agent_5/card"
-curl -s "$BASE_URL/agents/agent_5/card" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Agent: {d.get(\"name\",\"?\")}, Skills: {len(d.get(\"skills\",[]))}')"
+echo "11. GET /agents/agent_1/card"
+curl -s "$BASE_URL/agents/agent_1/card" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Agent: {d.get(\"name\",\"?\")}, Skills: {len(d.get(\"skills\",[]))}')"
+
+echo ""
+echo "=== Interaction API Tests ==="
+# Test 12: GET /interactions/recent
+echo "12. GET /interactions/recent?limit=5"
+curl -s "$BASE_URL/interactions/recent?limit=5" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Recent Interactions: {len(d.get(\"interactions\",[]))}')"
+
+# Test 13: GET /interactions/:id (ix_1)
+echo "13. GET /interactions/ix_1"
+curl -s "$BASE_URL/interactions/ix_1" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Interaction: {d.get(\"interaction_id\",\"?\")} ({d.get(\"intent\",\"?\")})')"
+
+# Test 14: GET /agents/:id/interactions
+echo "14. GET /agents/agent_1/interactions"
+curl -s "$BASE_URL/agents/agent_1/interactions" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Agent Interactions: {len(d.get(\"interactions\",[]))}')"
+
+# Test 15: GET /agents/:id/stats
+echo "15. GET /agents/agent_1/stats"
+curl -s "$BASE_URL/agents/agent_1/stats" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Stats: Sent={d.get(\"stats\",{}).get(\"total_requests_sent\",\"?\")}')"
 
 echo ""
 echo "=== Tests Complete ==="

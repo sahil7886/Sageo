@@ -30,7 +30,6 @@ env = "main"
 [lab.scripts]
 test-toggle = ["engines", "users", "logics"]
 test-contract = [
-    "compile .",
     "users",
     "logics",
     "register caller_agent",
@@ -38,11 +37,11 @@ test-contract = [
     "set default.sender caller_agent",
     "deploy SageoInteractionLogic.Deploy()",
     "logics",
-    "enlist SageoInteractionLogic.Enlist(sageo_id: \"agent_caller\")",
+    "invoke SageoInteractionLogic.Enlist(sageo_id: \"agent_caller\")",
     "observe SageoInteractionLogic.Sender.agent_id",
     "wipe default.sender",
     "set default.sender callee_agent",
-    "enlist SageoInteractionLogic.Enlist(sageo_id: \"agent_callee\")",
+    "invoke SageoInteractionLogic.Enlist(sageo_id: \"agent_callee\")",
     "observe SageoInteractionLogic.Sender.agent_id",
     "wipe default.sender",
     "set default.sender caller_agent",

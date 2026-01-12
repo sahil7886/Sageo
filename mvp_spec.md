@@ -85,14 +85,6 @@ This document clarifies the MVP implementation choices for Sageo, documenting de
 
 #### Known Limitation: GetAgentCard and Skills
 
-**Issue:** Cocolang cannot return `AgentCard` with populated `skills: []AgentSkill` array from a static endpoint due to varray serialization limitations ("failed to write varray size: slot is read-only").
-
-**Solution:**
-- Skills are stored correctly inside `agent_card.skills` per A2A spec
-- `GetAgentCard` returns the card without skills populated
-- `GetAgentSkills` returns skills separately
-- Client code should call both endpoints and merge results
-
 ### SageoInteractionLogic
 
 | Endpoint | Status | Notes |
@@ -178,16 +170,6 @@ Metadata injected into A2A message extensions for tracing.
 ---
 
 ## Design Decisions
-
-### 1. Array Fields as JSON Strings
-
-**Decision:** Store `string[]` fields as JSON-encoded strings (e.g., `'["text","voice"]'`).
-
-**Rationale:** Cocolang has limitations with `[]String` in certain contexts. JSON strings provide reliable storage and can be parsed client-side.
-
-**Affected Fields:**
-- `default_input_modes`, `default_output_modes`
-- `examples`, `input_modes`, `output_modes` (in AgentSkill)
 
 ### 2. Skills Stored in AgentCard, Fetched Separately
 

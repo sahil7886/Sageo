@@ -334,14 +334,119 @@ router.get('/:sageo_id', async (req: Request, res: Response, next: NextFunction)
   }
 });
 
-router.get('/:sageo_id/interactions', (req, res) => {
-  requireContract('interaction');
-  res.json([]);
+// GET /:sageo_id/interactions - List interactions involving a specific agent
+router.get('/:sageo_id/interactions', async (req, res, next) => {
+  try {
+    const sageo_id = validateSageoId(req.params.sageo_id);
+    const { INTERACTION_LOGIC_ID } = await import('../lib/moi-client.js');
+    const { getConfig } = await import('../lib/config.js');
+    const { requireContract } = await import('../lib/deps.js');
+
+    if (!INTERACTION_LOGIC_ID) {
+      return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
+    }
+
+    // Resolve SageoID to Address via IdentityLogic
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+    const profileResult = await readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageo_id) as any;
+
+    // Check if agent exists
+    if (!profileResult || profileResult.error || (profileResult.output && !profileResult.output.found)) {
+      // Agent not found -> empty interactions
+      return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
+    }
+
+    // Extract address. Profile struct has wallet_address
+    const profile = profileResult.output?.profile ?? profileResult.profile;
+    const agentAddress = profile?.wallet_address;
+
+    if (!agentAddress) {
+      return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
+    }
+
+    const limit = parseInt(req.query.limit as string) || 20;
+    const offset = parseInt(req.query.offset as string) || 0;
+
+    const result = await readLogic(
+      null,
+      INTERACTION_LOGIC_ID,
+      'ListInteractionsByAgent',
+      'interaction',
+      agentAddress,
+      limit,
+      offset,
+      { fuelLimit: 100000, fuelPrice: 1 }
+    ) as any;
+
+    // result: { records: [...], total: ... }
+    const interactions = result?.records || [];
+    const total = result?.total || 0;
+
+    res.json({
+      interactions,
+      total: Number(total),
+      limit,
+      offset
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
-router.get('/:sageo_id/stats', (req, res) => {
-  requireContract('interaction');
-  res.json(null);
+// GET /:sageo_id/stats - Get interaction statistics for an agent
+router.get('/:sageo_id/stats', async (req, res, next) => {
+  try {
+    const sageo_id = validateSageoId(req.params.sageo_id);
+    const { INTERACTION_LOGIC_ID } = await import('../lib/moi-client.js');
+    const { getConfig } = await import('../lib/config.js');
+    const { requireContract } = await import('../lib/deps.js');
+
+    if (!INTERACTION_LOGIC_ID) {
+      return res.json({ stats: null });
+    }
+
+    // Resolve SageoID to Address
+    const identityAddress = requireContract('identity');
+    const config = getConfig();
+    const profileResult = await readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageo_id) as any;
+
+    if (!profileResult || profileResult.error || (profileResult.output && !profileResult.output.found)) {
+      return res.json({ stats: null });
+    }
+
+    const profile = profileResult.output?.profile ?? profileResult.profile;
+    const agentAddress = profile?.wallet_address;
+
+    if (!agentAddress) {
+      return res.json({ stats: null });
+    }
+
+    const result = await readLogic(
+      null,
+      INTERACTION_LOGIC_ID,
+      'GetAgentInteractionStats',
+      'interaction',
+      agentAddress
+    ) as any;
+
+    if (!result || !result.found) {
+      return res.json({
+        stats: {
+          total_requests_sent: 0,
+          total_requests_received: 0,
+          total_responses_sent: 0,
+          success_count: 0,
+          unique_counterparties: 0,
+          last_interaction_at: 0
+        }
+      });
+    }
+
+    res.json({ stats: result.stats });
+  } catch (error) {
+    next(error);
+  }
 });
 
 export default router;

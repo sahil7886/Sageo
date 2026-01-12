@@ -165,12 +165,15 @@ elements:
       label: owner
       type: string
     - slot: 2
-      label: status
+      label: wallet_address
       type: string
     - slot: 3
+      label: status
+      type: string
+    - slot: 4
       label: created_at
       type: u64
-    - slot: 4
+    - slot: 5
       label: updated_at
       type: u64
     methods: []
@@ -188,15 +191,18 @@ elements:
       label: owner
       type: string
     - slot: 2
-      label: status
+      label: wallet_address
       type: string
     - slot: 3
+      label: status
+      type: string
+    - slot: 4
       label: created_at
       type: u64
-    - slot: 4
+    - slot: 5
       label: updated_at
       type: u64
-    - slot: 5
+    - slot: 6
       label: agent_card
       type: class.AgentCard
     methods: []
@@ -317,6 +323,9 @@ elements:
     - slot: 12
       label: preferred_transport
       type: string
+    - slot: 13
+      label: wallet_address
+      type: string
     returns:
     - slot: 0
       label: sageo_id
@@ -374,15 +383,17 @@ elements:
       - LDPTR1 $5 0x1
       - LMAKE $4 $5
       - SETFLD $1 &1 $4
+      - OBTAIN $4 &d
+      - SETFLD $1 &2 $4
       - LDPTR1 $5 0x2
       - LMAKE $4 $5
-      - SETFLD $1 &2 $4
-      - COPY $4 $2
       - SETFLD $1 &3 $4
       - COPY $4 $2
       - SETFLD $1 &4 $4
+      - COPY $4 $2
+      - SETFLD $1 &5 $4
       - COPY $2 $3
-      - SETFLD $1 &5 $2
+      - SETFLD $1 &6 $2
       - LLOAD $2 &1
       - GENKEY $3 $2 $0
       - DISPER $3 $1
@@ -519,7 +530,7 @@ elements:
       - LLOAD $1 &1
       - OBTAIN $2 &0
       - GETKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &8
       - SIZE $6 $5
       - GROW $5
@@ -527,7 +538,7 @@ elements:
       - DISPER $7 $0
       - SETIDX $5 $6 $7
       - SETFLD $4 &8 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - STORE $1
       - PMAKE $0 &1
@@ -572,7 +583,7 @@ elements:
       - NOT $5 $5
       - COPY $2 $5
       - NOT $5 $2
-      - LDPTR1 $6 0x2a
+      - LDPTR1 $6 0x2f
       - JUMPI $6 $5
       - GETFLD $5 $1 &0
       - GETKEY $6 $3 $4
@@ -595,10 +606,15 @@ elements:
       - GATHER $5 $6
       - SETFLD $1 &3 $5
       - GETFLD $5 $1 &4
-      - GETKEY $4 $3 $4
-      - GETFLD $4 $4 &4
-      - GATHER $5 $4
+      - GETKEY $6 $3 $4
+      - GETFLD $6 $6 &4
+      - GATHER $5 $6
       - SETFLD $1 &4 $5
+      - GETFLD $5 $1 &5
+      - GETKEY $4 $3 $4
+      - GETFLD $4 $4 &5
+      - GATHER $5 $4
+      - SETFLD $1 &5 $5
       - DEST
       - DUMP $3
       - COPY $0 $1
@@ -649,64 +665,64 @@ elements:
       - MAKE $5 $5
       - GETFLD $6 $5 &0
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &7
       - GETFLD $7 $7 &0
       - GATHER $6 $7
       - SETFLD $5 &0 $6
       - GETFLD $6 $5 &1
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &7
       - GETFLD $7 $7 &1
       - GATHER $6 $7
       - SETFLD $5 &1 $6
       - GETFLD $6 $5 &2
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &7
       - GETFLD $7 $7 &2
       - GATHER $6 $7
       - SETFLD $5 &2 $6
       - GETFLD $6 $1 &0
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &0
       - GATHER $6 $7
       - SETFLD $1 &0 $6
       - GETFLD $6 $1 &1
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &1
       - GATHER $6 $7
       - SETFLD $1 &1 $6
       - GETFLD $6 $1 &2
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &2
       - GATHER $6 $7
       - SETFLD $1 &2 $6
       - GETFLD $6 $1 &3
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &3
       - GATHER $6 $7
       - SETFLD $1 &3 $6
       - GETFLD $6 $1 &4
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &4
       - GATHER $6 $7
       - SETFLD $1 &4 $6
       - GETFLD $6 $1 &5
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &5
       - GATHER $6 $7
       - SETFLD $1 &5 $6
       - GETFLD $6 $1 &6
       - GETKEY $7 $3 $4
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &6
       - GATHER $6 $7
       - SETFLD $1 &6 $6
@@ -715,19 +731,19 @@ elements:
       - SETFLD $1 &7 $6
       - GETFLD $5 $1 &9
       - GETKEY $6 $3 $4
-      - GETFLD $6 $6 &5
+      - GETFLD $6 $6 &6
       - GETFLD $6 $6 &9
       - GATHER $5 $6
       - SETFLD $1 &9 $5
       - GETFLD $5 $1 &a
       - GETKEY $6 $3 $4
-      - GETFLD $6 $6 &5
+      - GETFLD $6 $6 &6
       - GETFLD $6 $6 &a
       - GATHER $5 $6
       - SETFLD $1 &a $5
       - GETFLD $5 $1 &b
       - GETKEY $4 $3 $4
-      - GETFLD $4 $4 &5
+      - GETFLD $4 $4 &6
       - GETFLD $4 $4 &b
       - GATHER $5 $4
       - SETFLD $1 &b $5
@@ -781,7 +797,7 @@ elements:
       - LDPTR1 $6 0x6b
       - JUMPI $6 $5
       - GETKEY $5 $3 $4
-      - GETFLD $5 $5 &5
+      - GETFLD $5 $5 &6
       - GETFLD $5 $5 &8
       - SIZE $5 $5
       - LDPTR1 $6 0xc
@@ -809,7 +825,7 @@ elements:
       - MAKE $8 $8
       - GETFLD $a $8 &0
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &0
@@ -817,7 +833,7 @@ elements:
       - SETFLD $8 &0 $a
       - GETFLD $a $8 &1
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &1
@@ -825,7 +841,7 @@ elements:
       - SETFLD $8 &1 $a
       - GETFLD $a $8 &2
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &2
@@ -833,7 +849,7 @@ elements:
       - SETFLD $8 &2 $a
       - GETFLD $a $8 &3
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &3
@@ -841,7 +857,7 @@ elements:
       - SETFLD $8 &3 $a
       - GETFLD $a $8 &4
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &4
@@ -849,7 +865,7 @@ elements:
       - SETFLD $8 &4 $a
       - GETFLD $a $8 &5
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &5
@@ -857,7 +873,7 @@ elements:
       - SETFLD $8 &5 $a
       - GETFLD $a $8 &6
       - GETKEY $b $3 $4
-      - GETFLD $b $b &5
+      - GETFLD $b $b &6
       - GETFLD $b $b &8
       - GETIDX $b $b $5
       - GETFLD $b $b &6
@@ -962,7 +978,7 @@ elements:
       - JUMPI $8 $7
       - GETIDX $7 $2 $4
       - GETKEY $7 $3 $7
-      - GETFLD $7 $7 &5
+      - GETFLD $7 $7 &6
       - GETFLD $7 $7 &3
       - OBTAIN $9 &0
       - EQ $7 $7 $9
@@ -1016,10 +1032,15 @@ elements:
       - GATHER $4 $5
       - SETFLD $2 &3 $4
       - GETFLD $4 $2 &4
-      - GETKEY $1 $3 $1
-      - GETFLD $1 $1 &4
-      - GATHER $4 $1
+      - GETKEY $5 $3 $1
+      - GETFLD $5 $5 &4
+      - GATHER $4 $5
       - SETFLD $2 &4 $4
+      - GETFLD $4 $2 &5
+      - GETKEY $1 $3 $1
+      - GETFLD $1 $1 &5
+      - GATHER $4 $1
+      - SETFLD $2 &5 $4
       - DUMP $3
       - COPY $0 $2
       - PMAKE $1 &1
@@ -1244,119 +1265,119 @@ elements:
       - LLOAD $1 &1
       - OBTAIN $2 &0
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &0
       - OBTAIN $6 &1
       - DISPER $5 $6
       - SETFLD $4 &0 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &1
       - OBTAIN $6 &2
       - DISPER $5 $6
       - SETFLD $4 &1 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &2
       - OBTAIN $6 &3
       - DISPER $5 $6
       - SETFLD $4 &2 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &3
       - OBTAIN $6 &4
       - DISPER $5 $6
       - SETFLD $4 &3 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &4
       - OBTAIN $6 &5
       - DISPER $5 $6
       - SETFLD $4 &4 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &5
       - OBTAIN $6 &6
       - DISPER $5 $6
       - SETFLD $4 &5 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &6
       - OBTAIN $6 &7
       - DISPER $5 $6
       - SETFLD $4 &6 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &7
       - GETFLD $6 $5 &0
       - OBTAIN $7 &8
       - DISPER $6 $7
       - SETFLD $5 &0 $6
       - SETFLD $4 &7 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &7
       - GETFLD $6 $5 &1
       - OBTAIN $7 &9
       - DISPER $6 $7
       - SETFLD $5 &1 $6
       - SETFLD $4 &7 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &7
       - GETFLD $6 $5 &2
       - OBTAIN $7 &a
       - DISPER $6 $7
       - SETFLD $5 &2 $6
       - SETFLD $4 &7 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &9
       - OBTAIN $6 &b
       - DISPER $5 $6
       - SETFLD $4 &9 $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &a
       - OBTAIN $6 &c
       - DISPER $5 $6
       - SETFLD $4 &a $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &5
+      - GETFLD $4 $3 &6
       - GETFLD $5 $4 &b
       - OBTAIN $6 &d
       - DISPER $5 $6
       - SETFLD $4 &b $5
-      - SETFLD $3 &5 $4
+      - SETFLD $3 &6 $4
       - SETKEY $1 $2 $3
       - GENKEY $3 $1 $2
-      - GETFLD $4 $3 &4
+      - GETFLD $4 $3 &5
       - DISPER $4 $0
-      - SETFLD $3 &4 $4
+      - SETFLD $3 &5 $4
       - SETKEY $1 $2 $3
       - STORE $1
       - PMAKE $0 &1
@@ -1504,14 +1525,14 @@ elements:
       - LLOAD $2 &1
       - OBTAIN $3 &0
       - GENKEY $4 $2 $3
-      - GETFLD $5 $4 &2
+      - GETFLD $5 $4 &3
       - DISPER $5 $1
-      - SETFLD $4 &2 $5
+      - SETFLD $4 &3 $5
       - SETKEY $2 $3 $4
       - GENKEY $1 $2 $3
-      - GETFLD $4 $1 &4
+      - GETFLD $4 $1 &5
       - DISPER $4 $0
-      - SETFLD $1 &4 $4
+      - SETFLD $1 &5 $4
       - SETKEY $2 $3 $1
       - STORE $2
       - PMAKE $0 &1

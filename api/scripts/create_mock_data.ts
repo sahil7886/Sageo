@@ -89,7 +89,7 @@ const MOCK_AGENTS = [
   }
 ];
 
-async function main() {
+async function main(): Promise<boolean> {
   console.log('========================================');
   console.log('Sageo Mock Data Creation');
   console.log('Network: Devnet (Hardcoded)');
@@ -97,8 +97,10 @@ async function main() {
 
   if (!IDENTITY_LOGIC_ID) {
     console.error('❌ IDENTITY_LOGIC_ID is not set in moi-client.ts. Please deploy contracts first.');
-    process.exit(1);
+    return false;
   }
+
+  let hasFailures = false;
 
   // Initialize MOI SDK
   console.log('🔧 Initializing MOI SDK...');
@@ -125,15 +127,10 @@ async function main() {
   // Register agents
   console.log('\n🤖 Registering mock agents...');
 
-  // First, we need to enlist ourselves if not already enlisted
-  try {
-    console.log('📝 Enlisting sender...');
-    const enlistIx = await logicDriver.routines.Enlist();
-    await enlistIx.wait();
-    console.log('✅ Enlisted successfully');
-  } catch (error) {
-    console.log('⚠️  Enlistment might have failed or already enlisted:', (error as Error).message);
-  }
+  // NOTE: Enlist is not required for RegisterAgent in SageoIdentityLogic
+  // The contract doesn't check is_enlisted before allowing agent registration.
+  // Also, the Enlist endpoint uses 'endpoint enlist dynamic' which requires 
+  // a special interaction type that LogicDriver.routines may not handle correctly.
 
   // Get initial agent count to track sageo_ids
   let nextAgentNumber = 1;
@@ -164,7 +161,8 @@ async function main() {
         agent.state_transition_history,
         agent.icon_url,
         agent.documentation_url,
-        agent.preferred_transport
+        agent.preferred_transport,
+        address.toString() // Ensure string format
       );
 
       console.log(`⏳ Waiting for confirmation... (Hash: ${ix.hash})`);
@@ -196,12 +194,14 @@ async function main() {
             console.log(`   ✅ Added skill: ${skill.skill_name}`);
           } catch (error) {
             console.error(`   ❌ Failed to add skill ${skill.skill_name}:`, (error as Error).message);
+            hasFailures = true;
           }
         }
       }
 
     } catch (error) {
       console.error(`❌ Failed to register ${agent.name}:`, (error as Error).message);
+      hasFailures = true;
     }
   }
 
@@ -217,17 +217,33 @@ async function main() {
     // MOI SDK returns { output: { ids: [...] }, error: null }
     const ids = idsResult?.output?.ids ?? idsResult?.ids ?? [];
     console.log(`Agent IDs: ${JSON.stringify(ids)}`);
+
+    if (ids.length === 0) {
+      console.error('❌ No agents found after registration - this indicates a problem');
+      hasFailures = true;
+    }
   } catch (error) {
     console.error('❌ Failed to verify:', (error as Error).message);
+    hasFailures = true;
   }
 
-  console.log('\n========================================');
-  console.log('Mock Data Creation Complete!');
-  console.log('========================================\n');
+  return !hasFailures;
 }
 
 main()
-  .then(() => process.exit(0))
+  .then((success) => {
+    if (success) {
+      console.log('\n========================================');
+      console.log('✨ Mock Data Creation SUCCESSFUL!');
+      console.log('========================================\n');
+      process.exit(0);
+    } else {
+      console.log('\n========================================');
+      console.log('❌ Mock Data Creation FAILED');
+      console.log('========================================\n');
+      process.exit(1);
+    }
+  })
   .catch((error) => {
     console.error('\n❌ Script failed:');
     console.error(error);
