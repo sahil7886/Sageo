@@ -44,6 +44,20 @@ export async function getIdentifier(wallet: Wallet): Promise<string> {
   return identifier.toString ? identifier.toString() : String(identifier);
 }
 
+export function normalizeIdentifier(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return '';
+  }
+  if (trimmed.startsWith('0x')) {
+    return trimmed;
+  }
+  if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+    return `0x${trimmed}`;
+  }
+  return trimmed;
+}
+
 
 export function extractIntent(message: Message): string {
   if (!message.parts || message.parts.length === 0) {

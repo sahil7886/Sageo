@@ -6,6 +6,7 @@ import {
   loadContract,
   getIdentifier,
 } from './client.js';
+import { normalizeIdentifier } from './utils.js';
 import {
   SDKConfig,
   InteractionRecord,
@@ -48,7 +49,7 @@ export class SageoInteractionSDK {
   }
 
   static async init(config: SDKConfig): Promise<SageoInteractionSDK> {
-    const provider = await createProvider(config.rpcUrl);
+    const provider = await createProvider();
     
     let wallet: Wallet | undefined;
     let writeDriver: LogicDriver | undefined;
@@ -188,15 +189,20 @@ export class SageoInteractionSDK {
     interactionId: string
   ): Promise<GetInteractionOutput> {
     try {
+      const normalizedIdentifier = normalizeIdentifier(agentIdentifier);
       const result = await this.readDriver.routines.GetInteraction(
-        agentIdentifier,
+        normalizedIdentifier,
         interactionId
       );
-      const [record, found] = result;
+      const output = Array.isArray(result)
+        ? { record: result[0], found: result[1] }
+        : (result as any)?.output ?? result;
+      const record = (output as any)?.record;
+      const found = Boolean((output as any)?.found);
 
       return {
         record: found ? this.parseRecord(record) : ({} as InteractionRecord),
-        found: Boolean(found),
+        found,
       };
     } catch (error) {
       throw new QueryError(
@@ -210,13 +216,18 @@ export class SageoInteractionSDK {
     input: ListInteractionsInput
   ): Promise<ListInteractionsOutput> {
     try {
+      const normalizedIdentifier = normalizeIdentifier(input.agentIdentifier);
       const result = await this.readDriver.routines.ListInteractionsByAgent(
-        input.agentIdentifier,
+        normalizedIdentifier,
         input.limit,
         input.offset
       );
 
-      const [records, total] = result;
+      const output = Array.isArray(result)
+        ? { records: result[0], total: result[1] }
+        : (result as any)?.output ?? result;
+      const records = (output as any)?.records ?? [];
+      const total = (output as any)?.total ?? 0;
 
       return {
         records: (records as any[]).map((r) => this.parseRecord(r)),
@@ -232,14 +243,19 @@ export class SageoInteractionSDK {
 
   async getAgentStats(agentIdentifier: string): Promise<GetStatsOutput> {
     try {
+      const normalizedIdentifier = normalizeIdentifier(agentIdentifier);
       const result = await this.readDriver.routines.GetAgentInteractionStats(
-        agentIdentifier
+        normalizedIdentifier
       );
-      const [stats, found] = result;
+      const output = Array.isArray(result)
+        ? { stats: result[0], found: result[1] }
+        : (result as any)?.output ?? result;
+      const stats = (output as any)?.stats;
+      const found = Boolean((output as any)?.found);
 
       return {
         stats: found ? this.parseStats(stats) : ({} as AgentInteractionStats),
-        found: Boolean(found),
+        found,
       };
     } catch (error) {
       throw new QueryError(`Failed to get stats for: ${agentIdentifier}`, error);

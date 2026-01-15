@@ -5,14 +5,19 @@
  */
 
 import { SageoClient } from '../src/index.js';
+import {
+  DEFAULT_IDENTITY_LOGIC_ID,
+  DEFAULT_INTERACTION_LOGIC_ID,
+  DEFAULT_RPC_URL,
+} from '../src/config.js';
 import type { AgentCard } from '../src/index.js';
 
 // Contract addresses (from deployment)
-const IDENTITY_LOGIC_ID = "0x20000000dde5e9ffe5379835797c1922255fe98b23d6cbb086711add00000000";
-const INTERACTION_LOGIC_ID = "0x20000000a6592ea994ed5cb34691a12efffbefbf2b2c19d4f9d09dd100000000";
+const IDENTITY_LOGIC_ID = DEFAULT_IDENTITY_LOGIC_ID;
+const INTERACTION_LOGIC_ID = DEFAULT_INTERACTION_LOGIC_ID;
 
 // MOI RPC URL for devnet
-const MOI_RPC_URL = 'https://voyage-rpc.moi.technology';
+const MOI_RPC_URL = DEFAULT_RPC_URL;
 
 // Agent mnemonic
 const AGENT_MNEMONIC = 'repair cycle monitor satisfy warfare forest decorate reveal update economy pizza lift';

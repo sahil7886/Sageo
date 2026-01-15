@@ -11,8 +11,7 @@ import { getIdentifier } from './utils.js';
 // Manifest cache
 const manifestCache: Map<string, any> = new Map();
 
-export async function createProvider(rpcUrl?: string): Promise<VoyageProvider> {
-  const url = rpcUrl || 'https://voyage-rpc.moi.technology';
+export async function createProvider(): Promise<VoyageProvider> {
   return new VoyageProvider('devnet');
 }
 

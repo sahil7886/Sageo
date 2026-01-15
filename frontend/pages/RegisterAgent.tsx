@@ -12,6 +12,9 @@ const RegisterAgent = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successId, setSuccessId] = useState<string | null>(null);
+  const [mnemonic, setMnemonic] = useState<string | null>(null);
+  const [walletAddress, setWalletAddress] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const addTag = (value: string) => {
     const trimmed = value.trim();
@@ -27,6 +30,9 @@ const RegisterAgent = () => {
     e.preventDefault();
     setError(null);
     setSuccessId(null);
+    setMnemonic(null);
+    setWalletAddress(null);
+    setWarning(null);
 
     if (!name || !version) {
       setError('Name and version are required.');
@@ -37,6 +43,9 @@ const RegisterAgent = () => {
       setSubmitting(true);
       const res = await registerAgent({ name, version, url, description, tags });
       setSuccessId(res.sageo_id);
+      setMnemonic(res.mnemonic || null);
+      setWalletAddress(res.wallet_address || null);
+      setWarning(res.warning || null);
     } catch (err: any) {
       setError(err?.message || 'Failed to register agent.');
     } finally {
@@ -96,8 +105,45 @@ const RegisterAgent = () => {
           </div>
         )}
         {successId && (
-          <div className="w-full rounded-lg border border-green-500/40 bg-green-500/10 p-3 text-sm text-green-200">
-            Registered: <span className="font-mono">{successId}</span>
+          <div className="w-full rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-sm text-green-100 flex flex-col gap-3">
+            <div>
+              Registered: <span className="font-mono text-green-200">{successId}</span>
+            </div>
+            {(walletAddress || mnemonic) && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-green-100">
+                {walletAddress && (
+                  <div className="bg-black/20 border border-green-500/20 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wider text-green-200/70">Wallet Address</div>
+                    <div className="mt-1 font-mono break-all">{walletAddress}</div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(walletAddress)}
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] text-green-200 hover:text-white transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                      Copy address
+                    </button>
+                  </div>
+                )}
+                {mnemonic && (
+                  <div className="bg-black/20 border border-green-500/20 rounded-lg p-3">
+                    <div className="text-[11px] uppercase tracking-wider text-green-200/70">Mnemonic</div>
+                    <div className="mt-1 font-mono break-words">{mnemonic}</div>
+                    <button
+                      type="button"
+                      onClick={() => navigator.clipboard.writeText(mnemonic)}
+                      className="mt-2 inline-flex items-center gap-1 text-[11px] text-green-200 hover:text-white transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
+                      Copy mnemonic
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+            {warning && (
+              <div className="text-[11px] text-green-200/80">{warning}</div>
+            )}
           </div>
         )}
 

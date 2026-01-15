@@ -4,22 +4,25 @@
  * Demonstrates 4-call flow where both parties log request and response
  */
 
-import { Wallet, VoyageProvider } from 'js-moi-sdk';
+import { Wallet, VoyageProvider, LogicDriver } from 'js-moi-sdk';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import yaml from 'js-yaml';
+import {
+  INTERACTION_LOGIC_ID,
+  MOI_DERIVATION_PATH,
+} from '../../api/src/lib/moi-client.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Hardcoded config
 const MOI_NETWORK = 'devnet';
-const MOI_MNEMONIC = "repair cycle monitor satisfy warfare forest decorate reveal update economy pizza lift";
-const MOI_DERIVATION_PATH_1 = "m/44'/6174'/7020'/0/0"; // Alice
-const MOI_DERIVATION_PATH_2 = "m/44'/6174'/7020'/0/1"; // Bob
-const INTERACTION_LOGIC_ID = "0x200000006b02c2beead8f04745dd36e14512c4cc2b20ff8c722cb9fc00000000";
-const IDENTITY_LOGIC_ID = "0x20000000b7121d400803c8af891614911c1df6b8c1e9aff64e788a0c00000000";
+const AGENT_MNEMONICS_PATH = path.resolve(
+  __dirname,
+  '../../api/scripts/agent_mnemonics.json'
+);
 
 async function main() {
   console.log('========================================');
@@ -32,46 +35,39 @@ async function main() {
   const manifestYamlSafe = manifestYaml.replace(/value:\s+(0x[0-9a-fA-F]+)/g, 'value: "$1"');
   const manifest = yaml.load(manifestYamlSafe) as any;
 
+  if (!fs.existsSync(AGENT_MNEMONICS_PATH)) {
+    console.error(`❌ agent_mnemonics.json not found at ${AGENT_MNEMONICS_PATH}`);
+    process.exit(1);
+  }
+
+  const mnemonicsData = JSON.parse(fs.readFileSync(AGENT_MNEMONICS_PATH, 'utf-8'));
+  const agents = mnemonicsData.agents || [];
+  if (agents.length < 2) {
+    console.error('❌ Need at least two agents in agent_mnemonics.json');
+    process.exit(1);
+  }
+
+  const [aliceAgent, bobAgent] = agents;
+
   // Initialize provider and wallets
   const provider = new VoyageProvider(MOI_NETWORK);
-  const aliceWallet = await Wallet.fromMnemonic(MOI_MNEMONIC, MOI_DERIVATION_PATH_1);
+  const aliceWallet = await Wallet.fromMnemonic(aliceAgent.mnemonic, MOI_DERIVATION_PATH);
   aliceWallet.connect(provider);
-  const bobWallet = await Wallet.fromMnemonic(MOI_MNEMONIC, MOI_DERIVATION_PATH_2);
+  const bobWallet = await Wallet.fromMnemonic(bobAgent.mnemonic, MOI_DERIVATION_PATH);
   bobWallet.connect(provider);
 
-  console.log(`Alice: ${aliceWallet.getIdentifier()}`);
-  console.log(`Bob: ${bobWallet.getIdentifier()}\n`);
+  console.log(`Alice: ${aliceWallet.getIdentifier()} (${aliceAgent.sageo_id})`);
+  console.log(`Bob: ${bobWallet.getIdentifier()} (${bobAgent.sageo_id})\n`);
 
-  // Import LogicDriver  
-  const { LogicDriver } = await import('js-moi-sdk');
-  
   const aliceDriver = new LogicDriver(INTERACTION_LOGIC_ID, manifest, aliceWallet);
   const bobDriver = new LogicDriver(INTERACTION_LOGIC_ID, manifest, bobWallet);
 
-  // Step 0: Enlist both agents
-  console.log('Step 0: Enlisting agents...');
-  try {
-    const aliceEnlist = await aliceDriver.routines.Enlist('agent_alice');
-    await (await aliceEnlist.send({ fuelPrice: 1, fuelLimit: 1000 })).wait();
-    console.log('✅ Alice enlisted');
-  } catch (e) {
-    console.log('⏭️  Alice already enlisted');
-  }
-
-  try {
-    const bobEnlist = await bobDriver.routines.Enlist('agent_bob');
-    await (await bobEnlist.send({ fuelPrice: 1, fuelLimit: 1000 })).wait();
-    console.log('✅ Bob enlisted\n');
-  } catch (e) {
-    console.log('⏭️  Bob already enlisted\n');
-  }
-
   // Step 1: Alice (caller) logs request - GENERATES interaction_id
   console.log('Step 1: Alice logs request (generates ID)...');
-  const timestamp = BigInt(Date.now());
+  const timestamp = BigInt(Math.floor(Date.now() / 1000));
   const aliceLogReq = await aliceDriver.routines.LogRequest(
     '',  // empty = generate new ID
-    'agent_bob',
+    bobAgent.sageo_id,
     true,  // is_sender = true (Alice is the sender)
     'hash_request_123',
     'get_weather',
@@ -102,7 +98,7 @@ async function main() {
   console.log(`Step 2: Bob logs request (uses ID: ${interactionId})...`);
   const bobLogReq = await bobDriver.routines.LogRequest(
     interactionId,  // use Alice's ID
-    'agent_alice',
+    aliceAgent.sageo_id,
     false,  // is_sender = false (Bob is the receiver)
     'hash_request_123',
     'get_weather',
@@ -119,10 +115,10 @@ async function main() {
 
   // Step 3: Bob (callee) logs response
   console.log(`Step 3: Bob logs response (ID: ${interactionId})...`);
-  const timestamp2 = BigInt(Date.now() + 1000);
+  const timestamp2 = BigInt(Math.floor(Date.now() / 1000) + 1);
   const bobLogResp = await bobDriver.routines.LogResponse(
     interactionId,
-    'agent_alice',
+    aliceAgent.sageo_id,
     true,  // is_sender = true (Bob is sending the response)
     'hash_response_456',
     200n,
@@ -136,7 +132,7 @@ async function main() {
   console.log(`Step 4: Alice logs response (ID: ${interactionId})...`);
   const aliceLogResp = await aliceDriver.routines.LogResponse(
     interactionId,
-    'agent_bob',
+    bobAgent.sageo_id,
     false,  // is_sender = false (Alice is receiving the response)
     'hash_response_456',
     200n,
@@ -157,8 +153,11 @@ async function main() {
     10n,
     0n
   );
-  console.log(`Total: ${aliceInteractions.total}`);
-  console.log('Records:', JSON.stringify(aliceInteractions.records, null, 2));
+  const aliceOutput = Array.isArray(aliceInteractions)
+    ? { records: aliceInteractions[0], total: aliceInteractions[1] }
+    : (aliceInteractions as any)?.output ?? aliceInteractions;
+  console.log(`Total: ${aliceOutput.total}`);
+  console.log('Records:', JSON.stringify(aliceOutput.records, null, 2));
 
   console.log('\nBob\'s interactions:');
   const bobInteractions = await bobDriver.routines.ListInteractionsByAgent(
@@ -166,8 +165,11 @@ async function main() {
     10n,
     0n
   );
-  console.log(`Total: ${bobInteractions.total}`);
-  console.log('Records:', JSON.stringify(bobInteractions.records, null, 2));
+  const bobOutput = Array.isArray(bobInteractions)
+    ? { records: bobInteractions[0], total: bobInteractions[1] }
+    : (bobInteractions as any)?.output ?? bobInteractions;
+  console.log(`Total: ${bobOutput.total}`);
+  console.log('Records:', JSON.stringify(bobOutput.records, null, 2));
 
   console.log('\n========================================');
   console.log('✨ Symmetric flow test complete!');

@@ -10,7 +10,7 @@ import {
   DEFAULT_INTERACTION_LOGIC_ID,
 } from './config.js';
 import type { AgentProfile, AgentSkill } from './types.js';
-import { getIdentifier } from './utils.js';
+import { normalizeIdentifier } from './utils.js';
 
 export class SageoClient {
   private moiRpcUrl: string;
@@ -179,7 +179,7 @@ export class SageoClient {
     await this.initialize();
 
     const profile = await this.getAgentProfile(sageoId);
-    return profile.wallet_address;
+    return normalizeIdentifier(profile.wallet_address);
   }
 
   // Expose SDKs for internal use

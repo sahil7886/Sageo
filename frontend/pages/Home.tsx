@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { fetchRecentInteractions, InteractionRecord } from '../lib/api';
+import { fetchAgents, AgentProfile } from '../lib/api';
 
 // Helper to format relative time (handles both Unix seconds and counter values)
 const formatRelativeTime = (timestamp: number): string => {
@@ -20,35 +20,34 @@ const formatRelativeTime = (timestamp: number): string => {
   return new Date(timestamp * 1000).toLocaleDateString();
 };
 
-// Helper to get color based on intent
-const getIntentColor = (intent: string): string => {
+// Helper to get color based on status
+const getStatusColor = (status: string): string => {
   const colors: Record<string, string> = {
-    'greeting': 'emerald',
-    'payment': 'indigo',
-    'query': 'blue',
-    'alert': 'rose',
-    'data': 'cyan',
-    'swap': 'purple',
+    'ACTIVE': 'emerald',
+    'PAUSED': 'amber',
+    'DEPRECATED': 'slate',
+    'INACTIVE': 'slate',
+    'SUSPENDED': 'rose',
   };
-  return colors[intent.toLowerCase()] || 'slate';
+  return colors[status] || 'slate';
 };
 
 const Home = () => {
-  const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
+  const [agents, setAgents] = useState<AgentProfile[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadInteractions = async () => {
+    const loadAgents = async () => {
       try {
-        const data = await fetchRecentInteractions(4);
-        setInteractions(data);
+        const data = await fetchAgents({ limit: 8 });
+        setAgents(data);
       } catch (err) {
-        console.error('Failed to load interactions:', err);
+        console.error('Failed to load agents:', err);
       } finally {
         setLoading(false);
       }
     };
-    loadInteractions();
+    loadAgents();
   }, []);
 
   return (
@@ -110,7 +109,7 @@ const Home = () => {
               onClick={() => document.getElementById('activity-feed')?.scrollIntoView({ behavior: 'smooth' })}
               className="group flex flex-col items-center gap-1 text-slate-400 hover:text-primary transition-colors cursor-pointer"
             >
-              <span className="text-xs tracking-wide">View Network Activity</span>
+              <span className="text-xs tracking-wide">View Recent Registrations</span>
               <span className="material-symbols-outlined text-sm group-hover:translate-y-0.5 transition-transform">arrow_downward</span>
             </button>
           </div>
@@ -122,8 +121,8 @@ const Home = () => {
         <div className="max-w-[1200px] mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-bold text-white flex items-center gap-3">
-              <span className="material-symbols-outlined text-primary">analytics</span>
-              Recent Interactions
+              <span className="material-symbols-outlined text-primary">group_add</span>
+              Recently Registered Agents
             </h3>
             <div className="flex gap-2">
               <button className="p-2 rounded-lg hover:bg-surface-dark text-slate-400 transition-colors">
@@ -141,10 +140,10 @@ const Home = () => {
               <table className="w-full min-w-[800px] text-left border-collapse">
                 <thead>
                   <tr className="border-b border-surface-border bg-black/20">
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Agent</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Intent</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Request Hash</th>
-                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4 text-right">Timestamp</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/3">Agent</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Owner</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/4">Status</th>
+                    <th className="px-6 py-4 text-xs font-semibold uppercase tracking-wider text-slate-400 w-1/6 text-right">Registered</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
@@ -153,53 +152,58 @@ const Home = () => {
                       <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
                         <div className="flex items-center justify-center gap-2">
                           <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
-                          Loading interactions...
+                          Loading agents...
                         </div>
                       </td>
                     </tr>
-                  ) : interactions.length === 0 ? (
+                  ) : agents.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
-                        No recent interactions found
+                        No registered agents found
                       </td>
                     </tr>
                   ) : (
-                    interactions.map((item) => {
-                      const color = getIntentColor(item.intent);
+                    agents.map((agent) => {
+                      const color = getStatusColor(agent.status);
+                      const agentName = agent.agent_card?.name || agent.sageo_id;
+                      const firstLetter = agentName[0]?.toUpperCase() || 'A';
+
                       return (
-                        <tr key={item.interaction_id} className="group hover:bg-white/5 transition-colors">
+                        <tr key={agent.sageo_id} className="group hover:bg-white/5 transition-colors">
                           <td className="px-6 py-4">
                             <div className="flex items-center gap-3">
-                              <div className="size-8 rounded bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-xs shadow-lg">
-                                {item.caller_sageo_id[0]?.toUpperCase() || 'A'}
+                              <div className="size-10 rounded bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white font-bold text-sm shadow-lg">
+                                {firstLetter}
                               </div>
                               <div>
-                                <Link to={`/agent/${item.caller_sageo_id}`} className="text-sm font-medium text-white hover:text-primary transition-colors">
-                                  {item.caller_sageo_id}
+                                <Link to={`/agent/${agent.sageo_id}`} className="text-sm font-medium text-white hover:text-primary transition-colors">
+                                  {agentName}
                                 </Link>
-                                <div className="text-xs text-slate-400">ID: {item.interaction_id}</div>
+                                <div className="text-xs text-slate-400">ID: {agent.sageo_id}</div>
                               </div>
                             </div>
                           </td>
                           <td className="px-6 py-4">
-                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-${color}-500/10 text-${color}-400 border border-${color}-500/20`}>
-                              <span className={`w-1.5 h-1.5 rounded-full bg-${color}-400`}></span>
-                              {item.intent}
-                            </span>
-                          </td>
-                          <td className="px-6 py-4">
                             <div className="flex items-center gap-2 text-slate-400 font-mono text-xs">
-                              <span>{item.request_hash.slice(0, 8)}...{item.request_hash.slice(-4)}</span>
+                              <span>{agent.owner.slice(0, 6)}...{agent.owner.slice(-4)}</span>
                               <button
-                                onClick={() => navigator.clipboard.writeText(item.request_hash)}
+                                onClick={() => navigator.clipboard.writeText(agent.owner)}
                                 className="opacity-0 group-hover:opacity-100 transition-opacity hover:text-primary"
                               >
                                 <span className="material-symbols-outlined text-[16px]">content_copy</span>
                               </button>
                             </div>
                           </td>
+                          <td className="px-6 py-4">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-${color}-500/10 text-${color}-400 border border-${color}-500/20`}>
+                              <span className={`w-1.5 h-1.5 rounded-full bg-${color}-400`}></span>
+                              {agent.status}
+                            </span>
+                          </td>
                           <td className="px-6 py-4 text-right">
-                            <span className="text-sm text-slate-400">{formatRelativeTime(item.timestamp)}</span>
+                            <span className="text-sm text-slate-400">
+                              {agent.registered_at ? formatRelativeTime(agent.registered_at) : 'N/A'}
+                            </span>
                           </td>
                         </tr>
                       );
@@ -210,9 +214,9 @@ const Home = () => {
             </div>
             {/* Footer of table */}
             <div className="px-6 py-3 bg-black/20 border-t border-surface-border flex items-center justify-between">
-              <span className="text-xs text-slate-500">Showing {interactions.length} recent interactions</span>
+              <span className="text-xs text-slate-500">Showing {agents.length} recently registered agents</span>
               <Link to="/discovery" className="text-xs font-bold text-primary hover:text-primary/80 flex items-center gap-1">
-                View all transactions <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                View all agents <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
               </Link>
             </div>
           </div>

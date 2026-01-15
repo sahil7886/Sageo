@@ -137,6 +137,39 @@ export async function fetchAgents(params?: {
     return Array.isArray(data) ? data.map(normalizeProfile) : [];
 }
 
+export async function fetchAgentsPaginated(params?: {
+    status?: string;
+    streaming?: boolean;
+    tags?: string;
+    limit?: number;
+    offset?: number;
+}): Promise<{ agents: AgentProfile[]; total: number }> {
+    const searchParams = new URLSearchParams();
+    if (params?.status) searchParams.set('status', params.status);
+    if (params?.streaming !== undefined) searchParams.set('streaming', String(params.streaming));
+    if (params?.tags) searchParams.set('tags', params.tags);
+    if (params?.limit) searchParams.set('limit', String(params.limit));
+    if (params?.offset) searchParams.set('offset', String(params.offset));
+
+    const url = `${API_BASE_URL}/agents${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Failed to fetch agents: ${res.status}`);
+    const data = await res.json();
+
+    // If backend returns {agents: [], total: number} format, use it
+    // Otherwise, return agents array with count as total
+    if (data && typeof data === 'object' && 'agents' in data && 'total' in data) {
+        return {
+            agents: Array.isArray(data.agents) ? data.agents.map(normalizeProfile) : [],
+            total: data.total || 0
+        };
+    }
+
+    // Fallback: if backend just returns array, we don't have true total
+    const agents = Array.isArray(data) ? data.map(normalizeProfile) : [];
+    return { agents, total: agents.length };
+}
+
 export async function searchAgents(query: string, limit?: number): Promise<AgentProfile[]> {
     const searchParams = new URLSearchParams({ q: query });
     if (limit) searchParams.set('limit', String(limit));
