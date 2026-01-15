@@ -67,9 +67,14 @@ export class SageoInteractionSDK {
 
     let readDriver: LogicDriver;
     try {
+      if (!wallet) {
+        
+        // Create a temporary wallet for read operations if no wallet provided
+        wallet = await createWallet(config.privateKey || '', provider);
+      }
       readDriver = await loadContract(
         { logicId: config.logicId, manifest: config.manifest },
-        provider
+        wallet
       );
     } catch (error) {
       throw new ContractLoadError(config.logicId, error);
@@ -95,7 +100,7 @@ export class SageoInteractionSDK {
     const driver = this.ensureSigner();
 
     try {
-      const ix = await driver.routines.Enlist([sageoId]);
+      const ix = await driver.routines.Enlist(sageoId);
       const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
       await result.wait();
     } catch (error) {
@@ -107,7 +112,7 @@ export class SageoInteractionSDK {
     const driver = this.ensureSigner();
 
     try {
-      const ix = await driver.routines.LogRequest([
+      const ix = await driver.routines.LogRequest(
         input.calleeIdentifier,
         input.requestHash,
         input.intent,
@@ -116,15 +121,27 @@ export class SageoInteractionSDK {
         input.a2aTaskId,
         input.a2aMessageId,
         input.endUserId,
-        input.endUserSessionId,
-      ]);
+        input.endUserSessionId
+      );
 
       const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
       const receipt = await result.wait();
 
-      const interactionId = receipt.outputs?.[0];
+      // Extract interaction_id from receipt (try multiple locations)
+      const interactionId =
+        receipt.outputs?.[0] ??
+        (receipt as any).interaction_id ??
+        (receipt as any).result?.interaction_id ??
+        (receipt as any).output?.interaction_id ??
+        (receipt as any).ix_operations?.[0]?.data?.interaction_id ??
+        (receipt as any).ix_operations?.[0]?.data?.result?.interaction_id;
+
       if (!interactionId || typeof interactionId !== 'string') {
-        throw new TransactionError('No interaction_id returned from LogRequest');
+        throw new TransactionError(
+          'No interaction_id returned from LogRequest',
+          receipt.hash,
+          receipt
+        );
       }
 
       return interactionId;
@@ -145,12 +162,12 @@ export class SageoInteractionSDK {
     const driver = this.ensureSigner();
 
     try {
-      const ix = await driver.routines.LogResponse([
+      const ix = await driver.routines.LogResponse(
         input.interactionId,
         input.responseHash,
         input.statusCode,
-        input.timestamp,
-      ]);
+        input.timestamp
+      );
 
       const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
       const receipt = await result.wait();
@@ -172,7 +189,7 @@ export class SageoInteractionSDK {
 
   async getInteraction(interactionId: string): Promise<GetInteractionOutput> {
     try {
-      const result = await this.readDriver.routines.GetInteraction([interactionId]);
+      const result = await this.readDriver.routines.GetInteraction(interactionId);
       const [record, found] = result;
 
       return {
@@ -188,11 +205,11 @@ export class SageoInteractionSDK {
     input: ListInteractionsInput
   ): Promise<ListInteractionsOutput> {
     try {
-      const result = await this.readDriver.routines.ListInteractionsByAgent([
+      const result = await this.readDriver.routines.ListInteractionsByAgent(
         input.agentIdentifier,
         input.limit,
-        input.offset,
-      ]);
+        input.offset
+      );
 
       const [records, total] = result;
 
@@ -210,9 +227,9 @@ export class SageoInteractionSDK {
 
   async getAgentStats(agentIdentifier: string): Promise<GetStatsOutput> {
     try {
-      const result = await this.readDriver.routines.GetAgentInteractionStats([
-        agentIdentifier,
-      ]);
+      const result = await this.readDriver.routines.GetAgentInteractionStats(
+        agentIdentifier
+      );
       const [stats, found] = result;
 
       return {

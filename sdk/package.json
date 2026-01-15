@@ -12,13 +12,18 @@
   },
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "dev": "tsc --watch",
+    "test": "tsx scripts/test-sdk.ts"
   },
   "dependencies": {
-    "js-moi-sdk": "^2.3.0"
+    "@a2a-js/sdk": "^0.3.0",
+    "js-moi-sdk": "^0.7.0-rc4",
+    "js-yaml": "^4.1.0"
   },
   "devDependencies": {
+    "@types/js-yaml": "^4.0.9",
     "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
     "typescript": "^5.3.0"
   }
 }

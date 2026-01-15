@@ -1,4 +1,22 @@
 // sdk/src/types.ts
+import type {
+  AgentCard as A2AAgentCard,
+  AgentSkill as A2AAgentSkill,
+  Message,
+  Task,
+  SendMessageRequest,
+} from '@a2a-js/sdk';
+
+// Re-export A2A types for convenience
+export type AgentCard = A2AAgentCard;
+export type AgentSkill = A2AAgentSkill;
+
+// A2AClient interface (not exported from @a2a-js/sdk, so we define it)
+export interface A2AClient {
+  sendMessage(request: SendMessageRequest): Promise<Task | Message>;
+  getTask(taskId: string): Promise<Task>;
+}
+
 export interface InteractionRecord {
   interaction_id: string;
   caller_sageo_id: string;
@@ -69,4 +87,76 @@ export interface SDKConfig {
   manifest: any;
   rpcUrl?: string;
   privateKey?: string;
+}
+
+// Sageo-specific types
+
+export enum AgentStatus {
+  ACTIVE = 'ACTIVE',
+  PAUSED = 'PAUSED',
+  DEPRECATED = 'DEPRECATED',
+}
+
+export interface AgentProfile {
+  sageo_id: string;
+  owner: string;
+  wallet_address: string;
+  status: AgentStatus;
+  created_at: bigint;
+  updated_at: bigint;
+  agent_card: AgentCard;
+}
+
+export interface AgentProfileMeta {
+  sageo_id: string;
+  owner: string;
+  wallet_address: string;
+  status: AgentStatus;
+  created_at: bigint;
+  updated_at: bigint;
+}
+
+export interface SageoTraceMetadata {
+  conversation_id: string;
+  interaction_id: string;
+  caller_sageo_id: string;
+  callee_sageo_id: string;
+  end_user?: {
+    id: string;
+    session_id?: string;
+  };
+  a2a: {
+    contextId?: string;
+    taskId?: string;
+    messageId?: string;
+    method?: string;
+  };
+  intent: string;
+  a2a_client_timestamp_ms?: number;
+}
+
+export interface SageoMetadataEnvelope {
+  [key: string]: SageoTraceMetadata;
+}
+
+// Identity SDK types
+
+export interface RegisterAgentInput {
+  agentCard: AgentCard;
+  owner?: string;
+}
+
+export interface GetAgentProfileOutput {
+  profile: AgentProfile | null;
+  found: boolean;
+}
+
+export interface GetAgentCardOutput {
+  card: AgentCard | null;
+  found: boolean;
+}
+
+export interface GetAgentSkillsOutput {
+  skills: AgentSkill[];
+  found: boolean;
 }
