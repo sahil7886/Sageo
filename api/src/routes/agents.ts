@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireContract } from '../lib/deps.js';
 import { validateSageoId } from '../lib/validate.js';
 import { NotFoundError, ApiError } from '../lib/errors.js';
-import { readLogic } from '../lib/moi-client.js';
+import { readLogic, writeLogic, IDENTITY_LOGIC_ID } from '../lib/moi-client.js';
 import { getConfig } from '../lib/config.js';
 
 const router = Router();
@@ -449,6 +449,63 @@ router.get('/:sageo_id/stats', async (req, res, next) => {
     res.json({ stats: output.stats });
   } catch (error) {
     next(error);
+  }
+});
+
+// POST /agents/register - Register a new agent
+router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const {
+      name,
+      description = '',
+      version,
+      url = '',
+      tags = [],
+      wallet_address = '',
+      icon_url = '',
+      documentation_url = '',
+      preferred_transport = 'HTTP+JSON',
+      streaming = false,
+      push_notifications = false,
+      state_transition_history = false,
+      protocol_version = '1.0',
+      default_input_modes = '[]',
+      default_output_modes = '[]',
+    } = req.body ?? {};
+
+    if (!name || !version) {
+      return res.status(400).json({ error: 'name and version are required' });
+    }
+
+    const timestamp = Date.now();
+
+    const result = await writeLogic(
+      IDENTITY_LOGIC_ID,
+      'RegisterAgent',
+      'identity',
+      name,
+      description,
+      version,
+      url,
+      protocol_version,
+      default_input_modes,
+      default_output_modes,
+      streaming,
+      push_notifications,
+      state_transition_history,
+      icon_url,
+      documentation_url,
+      preferred_transport,
+      wallet_address,
+      timestamp
+    );
+
+    // result may be { sageo_id } or raw receipt; normalize
+    const sageo_id = (result as any)?.sageo_id ?? (result as any)?.output?.sageo_id ?? (result as any)?.result?.sageo_id;
+
+    return res.status(201).json({ sageo_id, result });
+  } catch (err) {
+    next(err);
   }
 });
 
