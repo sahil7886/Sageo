@@ -1,6 +1,21 @@
 import React from 'react';
 
 const Documentation = () => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      const offset = 100; // Account for sticky header
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <div className="flex-1 w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row">
       {/* Sidebar Navigation */}
@@ -17,21 +32,25 @@ const Documentation = () => {
 
         <nav className="flex flex-col gap-1 mb-8">
           <p className="text-[10px] font-bold text-[#5f747a] uppercase tracking-wider mb-3 px-3">Table of Contents</p>
-          <a href="#intro" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#intro" onClick={(e) => handleNavClick(e, 'intro')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">article</span>
             <span className="text-sm font-medium">Introduction</span>
           </a>
-          <a href="#role-of-moi" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border-l-2 border-primary">
+          <a href="#role-of-moi" onClick={(e) => handleNavClick(e, 'role-of-moi')} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border-l-2 border-primary">
             <span className="material-symbols-outlined text-[18px]">hub</span>
             <span className="text-sm font-medium">The Role of MOI</span>
           </a>
-          <a href="#context-portability" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#context-portability" onClick={(e) => handleNavClick(e, 'context-portability')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">backpack</span>
             <span className="text-sm font-medium">Context Portability</span>
           </a>
-          <a href="#empowering-agents" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#empowering-agents" onClick={(e) => handleNavClick(e, 'empowering-agents')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">smart_toy</span>
             <span className="text-sm font-medium">Empowering Agents</span>
+          </a>
+          <a href="#sdk-installation" onClick={(e) => handleNavClick(e, 'sdk-installation')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+            <span className="material-symbols-outlined text-[18px]">download</span>
+            <span className="text-sm font-medium">SDK Installation</span>
           </a>
         </nav>
 
@@ -200,6 +219,212 @@ const Documentation = () => {
               <p className="text-text-secondary text-sm leading-relaxed">
                 Sageo transforms the agent economy from a collection of isolated chatbots into a cohesive ecosystem where user context is the unifying currency, secured by MOI.
               </p>
+            </div>
+          </section>
+
+          <hr className="border-surface-border/50" />
+
+          {/* SDK Installation Section */}
+          <section id="sdk-installation" className="flex flex-col gap-6 scroll-mt-32">
+            <div className="flex items-center gap-3 mb-2">
+              <span className="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
+                <span className="material-symbols-outlined text-[24px]">download</span>
+              </span>
+              <h2 className="text-2xl font-bold text-white">SDK Installation & Setup</h2>
+            </div>
+            <p className="text-base leading-7 text-gray-300">
+              The Sageo SDK provides a unified interface for interacting with the Sageo network on MOI. It handles agent registration, interaction logging, and seamless integration with the A2A (Agent-to-Agent) protocol. This guide will walk you through installation, configuration, and basic usage.
+            </p>
+
+            {/* Prerequisites */}
+            <div className="mt-4 p-6 rounded-xl bg-[#1c2426] border border-surface-border">
+              <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">checklist</span>
+                Prerequisites
+              </h3>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">Node.js</strong> v18 or higher (ESM modules required)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">MOI Wallet</strong> with a funded account (for transaction fees)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">Agent Endpoint</strong> - A running HTTP/HTTPS endpoint that implements the A2A protocol</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">TypeScript</strong> (recommended) or JavaScript project</span>
+                </li>
+              </ul>
+            </div>
+
+            {/* Installation Code */}
+            <div className="rounded-xl overflow-hidden bg-[#111618] border border-surface-border font-mono text-sm shadow-2xl mt-4">
+              <div className="flex items-center justify-between px-4 py-3 bg-[#1c2426] border-b border-surface-border">
+                <span className="text-xs text-text-secondary font-medium">Installation</span>
+                <div className="flex gap-1.5">
+                  <div className="size-2.5 rounded-full bg-[#3c4d53]"></div>
+                  <div className="size-2.5 rounded-full bg-[#3c4d53]"></div>
+                </div>
+              </div>
+              <div className="p-6 text-gray-300 overflow-x-auto leading-relaxed">
+                <pre><code><span className="text-slate-500"># Install via npm (includes all dependencies)</span>
+<span className="text-slate-400">npm install</span> <span className="text-primary">@sageo/interaction-sdk</span>
+
+<span className="text-slate-500"># Dependencies automatically installed:</span>
+<span className="text-slate-400">+</span> <span className="text-purple-400">js-moi-sdk</span><span className="text-slate-500">@^0.7.0-rc4</span> <span className="text-slate-500">(MOI blockchain SDK)</span>
+<span className="text-slate-400">+</span> <span className="text-purple-400">@a2a-js/sdk</span><span className="text-slate-500">@^0.3.0</span> <span className="text-slate-500">(A2A protocol)</span>
+<span className="text-slate-400">+</span> <span className="text-purple-400">js-yaml</span><span className="text-slate-500">@^4.1.0</span> <span className="text-slate-500">(Manifest parsing)</span>
+
+<span className="text-slate-500"># Or with yarn</span>
+<span className="text-slate-400">yarn add</span> <span className="text-primary">@sageo/interaction-sdk</span>
+
+<span className="text-slate-500"># Or with pnpm</span>
+<span className="text-slate-400">pnpm add</span> <span className="text-primary">@sageo/interaction-sdk</span></code></pre>
+              </div>
+            </div>
+
+            {/* Basic Usage */}
+            <div className="mt-6">
+              <h3 className="text-xl font-bold text-white mb-4">Quick Start</h3>
+              <div className="rounded-xl overflow-hidden bg-[#111618] border border-surface-border font-mono text-sm shadow-2xl">
+                <div className="flex items-center justify-between px-4 py-3 bg-[#1c2426] border-b border-surface-border">
+                  <span className="text-xs text-text-secondary font-medium">Basic Usage</span>
+                  <div className="flex gap-1.5">
+                    <div className="size-2.5 rounded-full bg-[#3c4d53]"></div>
+                    <div className="size-2.5 rounded-full bg-[#3c4d53]"></div>
+                  </div>
+                </div>
+                <div className="p-6 text-gray-300 overflow-x-auto leading-relaxed">
+                  <pre><code><span className="text-purple-400">import</span> <span className="text-slate-300">{`{ SageoClient }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@sageo/interaction-sdk'</span>;
+<span className="text-purple-400">import</span> <span className="text-purple-400">type</span> <span className="text-slate-300">{`{ AgentCard }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@a2a-js/sdk'</span>;
+
+<span className="text-slate-500">// 1. Define your agent card</span>
+<span className="text-purple-400">const</span> <span className="text-blue-400">agentCard</span>: <span className="text-yellow-300">AgentCard</span> = <span className="text-slate-300">{`{`}</span>
+  <span className="text-blue-400">name</span>: <span className="text-green-400">"MyAgent"</span>,
+  <span className="text-blue-400">description</span>: <span className="text-green-400">"My awesome AI agent"</span>,
+  <span className="text-blue-400">version</span>: <span className="text-green-400">"1.0.0"</span>,
+  <span className="text-blue-400">url</span>: <span className="text-green-400">"https://myagent.example.com"</span>
+<span className="text-slate-300">{`};`}</span>
+
+<span className="text-slate-500">// 2. Initialize the client</span>
+<span className="text-purple-400">const</span> <span className="text-blue-400">client</span> = <span className="text-purple-400">new</span> <span className="text-yellow-300">SageoClient</span><span className="text-slate-300">(</span>
+  <span className="text-green-400">"https://voyage-rpc.moi.technology"</span>, <span className="text-slate-500">// MOI RPC URL</span>
+  <span className="text-green-400">process.env.AGENT_PRIVATE_KEY</span>, <span className="text-slate-500">// Agent's private key</span>
+  <span className="text-blue-400">agentCard</span>
+<span className="text-slate-300">);</span>
+
+<span className="text-slate-500">// 3. Initialize and register</span>
+<span className="text-purple-400">await</span> <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">initialize</span><span className="text-slate-300">();</span>
+
+<span className="text-slate-500">// Your agent is now registered on Sageo!</span>
+<span className="text-purple-400">const</span> <span className="text-blue-400">mySageoId</span> = <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">getSageoId</span><span className="text-slate-300">();</span></code></pre>
+                </div>
+              </div>
+            </div>
+
+            {/* How It Works */}
+            <div className="mt-6">
+              <h3 className="text-xl font-bold text-white mb-4">How Installation Works</h3>
+              <div className="space-y-4">
+                <div className="p-5 rounded-xl bg-[#1c2426] border border-surface-border">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 size-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-primary font-bold text-sm">1</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base mb-2">Package Installation</h4>
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        When you install <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">@sageo/interaction-sdk</code>, 
+                        npm automatically installs the required dependencies: <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">js-moi-sdk</code> 
+                        for MOI blockchain interactions and <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">@a2a-js/sdk</code> 
+                        for A2A protocol support.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-[#1c2426] border border-surface-border">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 size-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-primary font-bold text-sm">2</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base mb-2">Client Initialization</h4>
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        The <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">SageoClient</code> constructor 
+                        accepts your MOI RPC URL, agent private key, and agent card. It internally initializes two SDK modules: 
+                        <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoIdentitySDK</code> for agent 
+                        registration and <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoInteractionSDK</code> 
+                        for interaction logging.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-[#1c2426] border border-surface-border">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 size-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-primary font-bold text-sm">3</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base mb-2">Automatic Registration</h4>
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        When you call <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">initialize()</code>, 
+                        the SDK automatically checks if your agent is already registered. If not, it registers your agent 
+                        on the Identity contract and assigns a unique Sageo ID. It also enlists your agent in the Interaction 
+                        contract for logging capabilities.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-5 rounded-xl bg-[#1c2426] border border-surface-border">
+                  <div className="flex items-start gap-4">
+                    <div className="mt-1 size-8 rounded-full bg-primary/20 flex items-center justify-center shrink-0">
+                      <span className="text-primary font-bold text-sm">4</span>
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-white text-base mb-2">Ready to Use</h4>
+                      <p className="text-sm text-text-secondary leading-relaxed">
+                        Once initialized, your agent is discoverable on the Sageo network. You can now use the client to log 
+                        interactions, query other agents, and integrate with the A2A protocol for seamless agent-to-agent 
+                        communication.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dependencies Info */}
+            <div className="mt-6 p-6 rounded-xl bg-gradient-to-r from-[#1c2426] to-[#161b1d] border-l-4 border-primary">
+              <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">info</span>
+                Important Notes
+              </h3>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>The SDK requires a MOI wallet with sufficient balance for transaction fees.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>By default, the SDK connects to MOI Voyage devnet. Change the RPC URL for production.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>Your agent's private key should be kept secure and never exposed in client-side code.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span>The <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">initialize()</code> method is idempotent—safe to call multiple times.</span>
+                </li>
+              </ul>
             </div>
           </section>
 
