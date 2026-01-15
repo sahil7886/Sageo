@@ -1,0 +1,329 @@
+coco SageoInteractionLogic
+
+// interaction proof stored on-chain
+class InteractionRecord:
+    field interaction_id String
+    field caller_sageo_id String
+    field callee_sageo_id String
+    field request_hash String
+    field response_hash String
+    field intent String
+    field status_code I64
+    field timestamp U64
+    field a2a_context_id String
+    field a2a_task_id String
+    field a2a_message_id String
+    field end_user_id String
+    field end_user_session_id String
+
+// cached stats per agent (Used for Return Type only, not in state)
+class AgentInteractionStats:
+    field total_requests_sent U64
+    field total_requests_received U64
+    field total_responses_sent U64
+    field success_count U64
+    field unique_counterparties U64
+    field last_interaction_at U64
+
+// global state
+state logic:
+    interaction_counter U64
+    interactions Map[String]InteractionRecord
+    interaction_ids []String
+
+// per-agent state (Flattened stats)
+state actor:
+    agent_id String
+    agent_interactions []String
+    counterparties []String
+    
+    // Flattened stats fields
+    stats_total_requests_sent U64
+    stats_total_requests_received U64
+    stats_total_responses_sent U64
+    stats_success_count U64
+    stats_unique_counterparties U64
+    stats_last_interaction_at U64
+
+// runs once on deploy, sets up counter
+endpoint deploy dynamic Deploy():
+    mutate 0 -> SageoInteractionLogic.Logic.interaction_counter
+
+// agents call this to join sageo before they can log interactions
+// NOTE: Using invoke instead of enlist due to devnet limitation
+endpoint dynamic Enlist(sageo_id String):
+    mutate sageo_id -> SageoInteractionLogic.Sender.agent_id
+
+// logs a request from caller to callee, returns interaction_id to link the response later
+endpoint dynamic LogRequest(
+    callee_identifier Identifier,
+    request_hash String,
+    intent String,
+    timestamp U64,
+    a2a_context_id String,
+    a2a_task_id String,
+    a2a_message_id String,
+    end_user_id String,
+    end_user_session_id String
+) -> (interaction_id String):
+    // check caller is enlisted
+    memory caller_sageo_id String
+    observe agent_id <- SageoInteractionLogic.Sender.agent_id:
+        if agent_id == "":
+            throw "Caller not enlisted"
+        caller_sageo_id = agent_id
+
+    // check callee is enlisted
+    memory callee_sageo_id String
+    memory callee_enlisted Bool = false
+    observe agent_id <- SageoInteractionLogic.Actor(callee_identifier).agent_id:
+        if agent_id != "":
+            callee_sageo_id = agent_id
+            callee_enlisted = true
+    if !callee_enlisted:
+        throw "Callee not enlisted"
+
+    // generate unique id
+    memory new_id String
+    mutate counter <- SageoInteractionLogic.Logic.interaction_counter:
+        counter += 1
+        new_id = "ix_" + String(counter)
+
+    // build the record
+    memory record InteractionRecord
+    record.interaction_id = new_id
+    record.caller_sageo_id = caller_sageo_id
+    record.callee_sageo_id = callee_sageo_id
+    record.request_hash = request_hash
+    record.response_hash = ""
+    record.intent = intent
+    record.status_code = -1
+    record.timestamp = timestamp
+    record.a2a_context_id = a2a_context_id
+    record.a2a_task_id = a2a_task_id
+    record.a2a_message_id = a2a_message_id
+    record.end_user_id = end_user_id
+    record.end_user_session_id = end_user_session_id
+
+    // store in global map
+    mutate interactions <- SageoInteractionLogic.Logic.interactions:
+        disperse interactions[new_id] <- record
+
+    mutate ids <- SageoInteractionLogic.Logic.interaction_ids:
+        append(ids, new_id)
+
+    // update caller stats
+    mutate caller_interactions <- SageoInteractionLogic.Sender.agent_interactions:
+        append(caller_interactions, new_id)
+
+    mutate s_sent <- SageoInteractionLogic.Sender.stats_total_requests_sent:
+        s_sent += 1
+    mutate s_last <- SageoInteractionLogic.Sender.stats_last_interaction_at:
+        s_last = timestamp
+
+    // track unique counterparties - check if already in list before adding
+    memory is_new_counterparty Bool = true
+    observe cp_list <- SageoInteractionLogic.Sender.counterparties:
+        for i in range(len(cp_list)):
+            if cp_list[i] == callee_sageo_id:
+                is_new_counterparty = false
+    
+    if is_new_counterparty:
+        mutate caller_counterparties <- SageoInteractionLogic.Sender.counterparties:
+            append(caller_counterparties, callee_sageo_id)
+        mutate s_unique <- SageoInteractionLogic.Sender.stats_unique_counterparties:
+            s_unique += 1
+
+    // update callee stats
+    mutate callee_interactions <- SageoInteractionLogic.Actor(callee_identifier).agent_interactions:
+        append(callee_interactions, new_id)
+
+    mutate c_recv <- SageoInteractionLogic.Actor(callee_identifier).stats_total_requests_received:
+        c_recv += 1
+    mutate c_last <- SageoInteractionLogic.Actor(callee_identifier).stats_last_interaction_at:
+        c_last = timestamp
+
+    // track unique counterparties for callee - check if already in list before adding
+    memory is_new_counterparty_callee Bool = true
+    observe cp_list_callee <- SageoInteractionLogic.Actor(callee_identifier).counterparties:
+        for i in range(len(cp_list_callee)):
+            if cp_list_callee[i] == caller_sageo_id:
+                is_new_counterparty_callee = false
+    
+    if is_new_counterparty_callee:
+        mutate callee_counterparties <- SageoInteractionLogic.Actor(callee_identifier).counterparties:
+            append(callee_counterparties, caller_sageo_id)
+        mutate c_unique <- SageoInteractionLogic.Actor(callee_identifier).stats_unique_counterparties:
+            c_unique += 1
+
+    // set return value
+    interaction_id = new_id
+
+// completes an interaction with the response hash and status code
+endpoint dynamic LogResponse(
+    ix_id String,
+    response_hash String,
+    status_code I64,
+    timestamp U64
+) -> (record InteractionRecord):
+    storage result InteractionRecord
+    mutate interactions <- SageoInteractionLogic.Logic.interactions:
+        if interactions[ix_id].interaction_id == "":
+            throw "Interaction not found"
+        interactions[ix_id].response_hash = response_hash
+        interactions[ix_id].status_code = status_code
+        result = interactions[ix_id]
+
+    mutate s_sent <- SageoInteractionLogic.Sender.stats_total_responses_sent:
+        s_sent += 1
+    mutate s_last <- SageoInteractionLogic.Sender.stats_last_interaction_at:
+        s_last = timestamp
+    
+    if status_code >= 200 && status_code < 300:
+        mutate s_success <- SageoInteractionLogic.Sender.stats_success_count:
+            s_success += 1
+
+    record = result
+
+// lookup a single interaction by id (Dynamic to bypass devnet read-only limitation)
+endpoint static GetInteraction(ix_id String) -> (record InteractionRecord, found Bool):
+    memory result InteractionRecord
+    memory was_found Bool = false
+    observe interactions <- SageoInteractionLogic.Logic.interactions:
+        if interactions[ix_id].interaction_id != "":
+            was_found = true
+            // Manual copy to ensure safety (though dynamic allows storage access)
+            result.interaction_id = interactions[ix_id].interaction_id
+            result.caller_sageo_id = interactions[ix_id].caller_sageo_id
+            result.callee_sageo_id = interactions[ix_id].callee_sageo_id
+            result.request_hash = interactions[ix_id].request_hash
+            result.response_hash = interactions[ix_id].response_hash
+            result.intent = interactions[ix_id].intent
+            result.status_code = interactions[ix_id].status_code
+            result.timestamp = interactions[ix_id].timestamp
+            result.a2a_context_id = interactions[ix_id].a2a_context_id
+            result.a2a_task_id = interactions[ix_id].a2a_task_id
+            result.a2a_message_id = interactions[ix_id].a2a_message_id
+            result.end_user_id = interactions[ix_id].end_user_id
+            result.end_user_session_id = interactions[ix_id].end_user_session_id
+
+    record = result
+    found = was_found
+
+// get paginated interactions for an agent (newest first)
+endpoint static ListInteractionsByAgent(
+    agent_identifier Identifier,
+    limit U64,
+    offset U64
+) -> (records []InteractionRecord, total U64):
+    memory result_records []InteractionRecord
+    memory total_count U64 = 0
+    memory ids []String
+
+    observe agent_ids <- SageoInteractionLogic.Actor(agent_identifier).agent_interactions:
+        total_count = U64(len(agent_ids))
+        for i in range(total_count):
+            append(ids, agent_ids[i])
+
+    if offset >= total_count:
+        records = result_records
+        total = total_count
+        return
+
+    memory count U64 = total_count - offset
+    if count > limit:
+        count = limit
+
+    observe interactions <- SageoInteractionLogic.Logic.interactions:
+        for i in range(count):
+            memory idx U64 = total_count - offset - 1 - i
+            memory id String = ids[idx]
+            memory rec InteractionRecord
+            rec.interaction_id = interactions[id].interaction_id
+            rec.caller_sageo_id = interactions[id].caller_sageo_id
+            rec.callee_sageo_id = interactions[id].callee_sageo_id
+            rec.request_hash = interactions[id].request_hash
+            rec.response_hash = interactions[id].response_hash
+            rec.intent = interactions[id].intent
+            rec.status_code = interactions[id].status_code
+            rec.timestamp = interactions[id].timestamp
+            rec.a2a_context_id = interactions[id].a2a_context_id
+            rec.a2a_task_id = interactions[id].a2a_task_id
+            rec.a2a_message_id = interactions[id].a2a_message_id
+            rec.end_user_id = interactions[id].end_user_id
+            rec.end_user_session_id = interactions[id].end_user_session_id
+            append(result_records, rec)
+
+    records = result_records
+    total = total_count
+
+// get an agent's cached stats
+endpoint static GetAgentInteractionStats(
+    agent_identifier Identifier
+) -> (stats AgentInteractionStats, found Bool):
+    memory result AgentInteractionStats
+    memory was_found Bool = false
+    observe agent_id <- SageoInteractionLogic.Actor(agent_identifier).agent_id:
+        was_found = agent_id != ""
+    if was_found:
+        observe s_sent <- SageoInteractionLogic.Actor(agent_identifier).stats_total_requests_sent:
+            result.total_requests_sent = s_sent
+        observe s_recv <- SageoInteractionLogic.Actor(agent_identifier).stats_total_requests_received:
+            result.total_requests_received = s_recv
+        observe s_resp <- SageoInteractionLogic.Actor(agent_identifier).stats_total_responses_sent:
+            result.total_responses_sent = s_resp
+        observe s_succ <- SageoInteractionLogic.Actor(agent_identifier).stats_success_count:
+            result.success_count = s_succ
+        observe s_uniq <- SageoInteractionLogic.Actor(agent_identifier).stats_unique_counterparties:
+            result.unique_counterparties = s_uniq
+        observe s_last <- SageoInteractionLogic.Actor(agent_identifier).stats_last_interaction_at:
+            result.last_interaction_at = s_last
+            
+    stats = result
+    found = was_found
+
+// get paginated recent interactions (newest first)
+endpoint static ListRecentInteractions(
+    limit U64,
+    offset U64
+) -> (records []InteractionRecord, total U64):
+    memory result_records []InteractionRecord
+    memory total_count U64 = 0
+    memory ids []String
+
+    observe all_ids <- SageoInteractionLogic.Logic.interaction_ids:
+        total_count = U64(len(all_ids))
+        for i in range(total_count):
+            append(ids, all_ids[i])
+
+    if offset >= total_count:
+        records = result_records
+        total = total_count
+        return
+
+    memory count U64 = total_count - offset
+    if count > limit:
+        count = limit
+
+    observe interactions <- SageoInteractionLogic.Logic.interactions:
+        for i in range(count):
+            memory idx U64 = total_count - offset - 1 - i
+            memory id String = ids[idx]
+            memory rec InteractionRecord
+            rec.interaction_id = interactions[id].interaction_id
+            rec.caller_sageo_id = interactions[id].caller_sageo_id
+            rec.callee_sageo_id = interactions[id].callee_sageo_id
+            rec.request_hash = interactions[id].request_hash
+            rec.response_hash = interactions[id].response_hash
+            rec.intent = interactions[id].intent
+            rec.status_code = interactions[id].status_code
+            rec.timestamp = interactions[id].timestamp
+            rec.a2a_context_id = interactions[id].a2a_context_id
+            rec.a2a_task_id = interactions[id].a2a_task_id
+            rec.a2a_message_id = interactions[id].a2a_message_id
+            rec.end_user_id = interactions[id].end_user_id
+            rec.end_user_session_id = interactions[id].end_user_session_id
+            append(result_records, rec)
+
+    records = result_records
+    total = total_count

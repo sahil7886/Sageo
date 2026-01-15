@@ -14,8 +14,8 @@ export const MOI_DERIVATION_PATH = "m/44'/6174'/7020'/0/0";
 export const MOI_NETWORK = 'devnet';
 
 // DEPLOYED CONTRACT ADDRESSES (Updated after deployment)
-export const IDENTITY_LOGIC_ID = "0x20000000865b8e9d17a93e28d83f1f873e2981e8cacf58a9425ad23900000000";
-export const INTERACTION_LOGIC_ID = "0x20000000c9a634c87c3173259f2b11d5389bf78ab4f0b6b7d61585d100000000";
+export const IDENTITY_LOGIC_ID = "0x20000000b7121d400803c8af891614911c1df6b8c1e9aff64e788a0c00000000";
+export const INTERACTION_LOGIC_ID = "0x200000006b02c2beead8f04745dd36e14512c4cc2b20ff8c722cb9fc00000000";
 
 // Cache for logic manifests
 const manifestCache: Map<string, any> = new Map();
@@ -157,6 +157,14 @@ export async function deployLogic(
 
     // Log receipt to find logic_id
     console.log('Deployment Receipt:', JSON.stringify(receipt, null, 2));
+
+    // Check if deployment failed (status 1 = error)
+    const receiptStatus = (receipt as any).status;
+    const opStatus = receipt.ix_operations?.[0]?.status;
+    
+    if (receiptStatus === 1 || opStatus === 1) {
+      throw new Error(`Deployment transaction failed on-chain (status=${receiptStatus}, op_status=${opStatus}). The Deploy endpoint likely threw an error.`);
+    }
 
     // Try to find logic_id in receipt result. 
     // Found in receipt.ix_operations[0].data.logic_id

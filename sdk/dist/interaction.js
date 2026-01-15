@@ -28,8 +28,6 @@ export class SageoInteractionSDK {
         }
         let readDriver;
         try {
-            // LogicDriver requires a Wallet, not a Provider
-            // For read operations, we need a wallet (can be the same wallet or a read-only one)
             if (!wallet) {
                 // Create a temporary wallet for read operations if no wallet provided
                 wallet = await createWallet(config.privateKey || '', provider);
@@ -61,14 +59,16 @@ export class SageoInteractionSDK {
     async logRequest(input) {
         const driver = this.ensureSigner();
         try {
-            const ix = await driver.routines.LogRequest(input.calleeIdentifier, input.requestHash, input.intent, input.timestamp, input.a2aContextId, input.a2aTaskId, input.a2aMessageId, input.endUserId, input.endUserSessionId);
+            const ix = await driver.routines.LogRequest(input.interactionId, input.counterpartySageoId, input.isSender, input.requestHash, input.intent, input.timestamp, input.a2aContextId, input.a2aTaskId, input.a2aMessageId, input.endUserId, input.endUserSessionId);
             const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
             const receipt = await result.wait();
             // Extract interaction_id from receipt (try multiple locations)
             const interactionId = receipt.outputs?.[0] ??
                 receipt.interaction_id ??
                 receipt.result?.interaction_id ??
+                receipt.result?.result_interaction_id ??
                 receipt.output?.interaction_id ??
+                receipt.output?.result_interaction_id ??
                 receipt.ix_operations?.[0]?.data?.interaction_id ??
                 receipt.ix_operations?.[0]?.data?.result?.interaction_id;
             if (!interactionId || typeof interactionId !== 'string') {
@@ -78,12 +78,9 @@ export class SageoInteractionSDK {
         }
         catch (error) {
             const errorMsg = String(error);
-            if (errorMsg.includes('Caller not enlisted')) {
+            if (errorMsg.includes('not enlisted')) {
                 const callerAddr = await getIdentifier(this.wallet);
                 throw new NotEnlistedError(callerAddr, 'caller');
-            }
-            if (errorMsg.includes('Callee not enlisted')) {
-                throw new NotEnlistedError(input.calleeIdentifier, 'callee');
             }
             throw new TransactionError('Failed to log request', undefined, error);
         }
@@ -91,14 +88,9 @@ export class SageoInteractionSDK {
     async logResponse(input) {
         const driver = this.ensureSigner();
         try {
-            const ix = await driver.routines.LogResponse(input.interactionId, input.responseHash, input.statusCode, input.timestamp);
+            const ix = await driver.routines.LogResponse(input.interactionId, input.counterpartySageoId, input.isSender, input.responseHash, input.statusCode, input.timestamp);
             const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            const receipt = await result.wait();
-            const record = receipt.outputs?.[0];
-            if (!record) {
-                throw new TransactionError('No record returned from LogResponse');
-            }
-            return this.parseRecord(record);
+            await result.wait();
         }
         catch (error) {
             const errorMsg = String(error);
@@ -108,9 +100,9 @@ export class SageoInteractionSDK {
             throw new TransactionError('Failed to log response', undefined, error);
         }
     }
-    async getInteraction(interactionId) {
+    async getInteraction(agentIdentifier, interactionId) {
         try {
-            const result = await this.readDriver.routines.GetInteraction(interactionId);
+            const result = await this.readDriver.routines.GetInteraction(agentIdentifier, interactionId);
             const [record, found] = result;
             return {
                 record: found ? this.parseRecord(record) : {},

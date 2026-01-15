@@ -25,6 +25,23 @@ npm install
 npm run dev
 ```
 
+## Local Testing Flow
+
+Use the deployment and mock data scripts to seed contracts for local testing.
+
+```bash
+cd api
+tsx scripts/deploy.ts
+```
+
+Update the contract IDs printed by the deploy script in `api/src/lib/moi-client.ts`, then run:
+
+```bash
+tsx scripts/create_mock_data.ts
+```
+
+This seeds mock agents and mock interactions in one step.
+
 ### Production
 
 ```bash
@@ -68,8 +85,8 @@ These endpoints exist but return placeholder responses:
 - `GET /agents/by-url` - Get agent by URL
 - `GET /agents/:sageo_id/interactions` - Get agent interactions
 - `GET /agents/:sageo_id/stats` - Get agent statistics
-- `GET /interactions/:interaction_id` - Get interaction by ID
-- `GET /interactions/:interaction_id/verify` - Verify interaction
+- `GET /interactions/:interaction_id?sageo_id=...` - Get interaction by ID (agent scope required)
+- `GET /interactions/:interaction_id/verify?sageo_id=...` - Verify interaction
 
 ## Error Responses
 
@@ -89,4 +106,3 @@ Common error codes:
 - `NOT_IMPLEMENTED` (501) - Contract not configured
 - `CHAIN_ERROR` (500) - MOI blockchain error
 - `INTERNAL_ERROR` (500) - Server error
-

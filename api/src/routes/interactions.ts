@@ -16,8 +16,7 @@ router.get('/recent', async (req, res, next) => {
     const limit = parseInt(req.query.limit as string) || 10;
 
     // Resolve agent_1 to get address
-    // In a real app, we'd have a 'ListRecentInteractions' on-chain endpoint (now implemented in IDL but not deployed due to funds)
-    // Fallback: Fetch agent_1 interactions
+    // No global recent-interactions endpoint; fallback to agent_1 interactions
     const config = getConfig();
     const profileResult = await readLogic(config, IDENTITY_LOGIC_ID, 'GetAgentProfile', 'identity', 'agent_1') as any;
 
@@ -57,6 +56,35 @@ router.get('/recent', async (req, res, next) => {
 router.get('/:interaction_id', async (req, res, next) => {
   try {
     const { interaction_id } = req.params;
+    const sageoId = req.query.sageo_id as string | undefined;
+    const agentAddress = req.query.agent_address as string | undefined;
+
+    let agentIdentifier = agentAddress?.trim();
+    if (!agentIdentifier) {
+      if (!sageoId) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Missing sageo_id or agent_address');
+      }
+
+      const config = getConfig();
+      const profileResult = await readLogic(
+        config,
+        IDENTITY_LOGIC_ID,
+        'GetAgentProfile',
+        'identity',
+        sageoId
+      ) as any;
+
+      if (!profileResult || !profileResult.output || !profileResult.output.found) {
+        throw new ApiError(404, 'NOT_FOUND', 'Agent not found');
+      }
+
+      const profile = profileResult.output.profile;
+      agentIdentifier = profile?.wallet_address;
+    }
+
+    if (!agentIdentifier) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Agent identifier could not be resolved');
+    }
 
     // readLogic now automatically awaits dynamic call results
     const result = await readLogic(
@@ -64,6 +92,7 @@ router.get('/:interaction_id', async (req, res, next) => {
       INTERACTION_LOGIC_ID,
       'GetInteraction',
       'interaction',
+      agentIdentifier,
       interaction_id
     ) as any;
     // Static endpoints return { output: { record: {...}, found: bool }, error: null }
@@ -85,11 +114,42 @@ router.get('/:interaction_id', async (req, res, next) => {
 router.get('/:interaction_id/verify', async (req, res, next) => {
   try {
     const { interaction_id } = req.params;
+    const sageoId = req.query.sageo_id as string | undefined;
+    const agentAddress = req.query.agent_address as string | undefined;
+
+    let agentIdentifier = agentAddress?.trim();
+    if (!agentIdentifier) {
+      if (!sageoId) {
+        throw new ApiError(400, 'VALIDATION_ERROR', 'Missing sageo_id or agent_address');
+      }
+
+      const config = getConfig();
+      const profileResult = await readLogic(
+        config,
+        IDENTITY_LOGIC_ID,
+        'GetAgentProfile',
+        'identity',
+        sageoId
+      ) as any;
+
+      if (!profileResult || !profileResult.output || !profileResult.output.found) {
+        throw new ApiError(404, 'NOT_FOUND', 'Agent not found');
+      }
+
+      const profile = profileResult.output.profile;
+      agentIdentifier = profile?.wallet_address;
+    }
+
+    if (!agentIdentifier) {
+      throw new ApiError(400, 'VALIDATION_ERROR', 'Agent identifier could not be resolved');
+    }
+
     const result = await readLogic(
       null,
       INTERACTION_LOGIC_ID,
       'GetInteraction',
       'interaction',
+      agentIdentifier,
       interaction_id
     ) as any;
     // Static endpoints return { output: { record: {...}, found: bool }, error: null }

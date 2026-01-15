@@ -20,9 +20,6 @@ export class SageoClient {
         this.interactionLogicId =
             interactionLogicId || DEFAULT_INTERACTION_LOGIC_ID;
     }
-    /**
-     * Initialize the client and ensure agent is registered
-     */
     async initialize() {
         if (this.initialized) {
             return;
@@ -44,24 +41,22 @@ export class SageoClient {
             rpcUrl: this.moiRpcUrl,
             privateKey: this.agentKey,
         });
-        // Enlist in IdentityLogic if needed
         try {
             await this.identitySDK.enlist();
         }
         catch (error) {
-            // Ignore if already enlisted
             const errorMsg = String(error);
-            if (!errorMsg.includes('already enlisted')) {
+            if (errorMsg.includes('account not found')) {
+            }
+            else if (!errorMsg.includes('already enlisted')) {
                 console.warn('Failed to enlist in IdentityLogic:', errorMsg);
             }
         }
-        // Check if agent is already registered
         const myProfile = await this.identitySDK.getMyProfile();
         if (myProfile) {
             this.mySageoId = myProfile.sageo_id;
         }
         else {
-            // Register the agent
             const profile = await this.identitySDK.registerAgent({
                 agentCard: this.agentCard,
             });
@@ -82,9 +77,6 @@ export class SageoClient {
         }
         this.initialized = true;
     }
-    /**
-     * Get the current agent's Sageo profile
-     */
     async getMyProfile() {
         await this.initialize();
         if (!this.mySageoId) {
@@ -96,18 +88,12 @@ export class SageoClient {
         }
         return result.profile;
     }
-    /**
-     * Wrap an A2A client to automatically log interactions
-     */
     wrapA2AClient(a2aClient, remoteAgentCard) {
         if (!this.initialized) {
             throw new Error('SageoClient not initialized. Call initialize() first or use await getMyProfile()');
         }
         return new SageoA2AClientWrapper(a2aClient, this, remoteAgentCard, this.mySageoId);
     }
-    /**
-     * Get agent card by sageo_id (with skills merged)
-     */
     async getAgentCard(sageoId) {
         await this.initialize();
         const cardResult = await this.identitySDK.getAgentCard(sageoId);
@@ -120,17 +106,11 @@ export class SageoClient {
         }
         return cardResult.card;
     }
-    /**
-     * Get agent skills by sageo_id
-     */
     async getAgentSkills(sageoId) {
         await this.initialize();
         const result = await this.identitySDK.getAgentSkills(sageoId);
         return result.skills;
     }
-    /**
-     * Get agent profile by sageo_id
-     */
     async getAgentProfile(sageoId) {
         await this.initialize();
         const result = await this.identitySDK.getAgentProfile(sageoId);
@@ -139,9 +119,6 @@ export class SageoClient {
         }
         return result.profile;
     }
-    /**
-     * Resolve sageo_id to wallet address (for InteractionLogic)
-     */
     async resolveSageoIdToAddress(sageoId) {
         await this.initialize();
         const profile = await this.getAgentProfile(sageoId);

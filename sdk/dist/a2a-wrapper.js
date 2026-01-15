@@ -11,9 +11,6 @@ export class SageoA2AClientWrapper {
         this.remoteAgentCard = remoteAgentCard;
         this.callerSageoId = callerSageoId;
     }
-    /**
-     * Send a message with automatic Sageo logging
-     */
     async sendMessage(request) {
         // Extract A2A metadata from request
         const message = request.params.message;
@@ -24,8 +21,6 @@ export class SageoA2AClientWrapper {
         const intent = extractIntent(message);
         // Hash the request payload
         const requestHash = hashPayload(request);
-        // Resolve remote agent's profile from URL
-        // The InteractionLogic contract expects callee_identifier as Identifier (wallet address)
         let calleeAddress;
         let calleeSageoId = '';
         try {
@@ -46,7 +41,7 @@ export class SageoA2AClientWrapper {
         // Create trace metadata (interaction_id will be set after logging)
         const traceMetadata = {
             conversation_id: contextId,
-            interaction_id: '', // Will be set after logging
+            interaction_id: '',
             caller_sageo_id: this.callerSageoId,
             callee_sageo_id: calleeSageoId,
             a2a: {
@@ -64,7 +59,9 @@ export class SageoA2AClientWrapper {
         let interactionId;
         try {
             interactionId = await this.sageoClient.interaction.logRequest({
-                calleeIdentifier: calleeAddress,
+                interactionId: '',
+                counterpartySageoId: calleeAddress,
+                isSender: true,
                 requestHash,
                 intent,
                 timestamp: BigInt(Math.floor(Date.now() / 1000)),
@@ -81,23 +78,14 @@ export class SageoA2AClientWrapper {
         catch (error) {
             // Log warning but continue with A2A call
             console.warn('Failed to log interaction to Sageo:', error);
-            // Continue without logging
         }
         // Send the A2A request
         const response = await this.a2aClient.sendMessage(request);
-        // Note: Response logging is handled by SageoRequestHandler on the callee side
-        // For MVP, we only log requests from the caller side
         return response;
     }
-    /**
-     * Get task by ID (passthrough, no logging)
-     */
     async getTask(taskId) {
         return this.a2aClient.getTask(taskId);
     }
-    /**
-     * Inject SageoTraceMetadata into request
-     */
     injectTraceMetadata(request, metadata) {
         // Add to metadata
         if (!request.params.message.metadata) {

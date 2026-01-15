@@ -113,7 +113,9 @@ export class SageoInteractionSDK {
 
     try {
       const ix = await driver.routines.LogRequest(
-        input.calleeIdentifier,
+        input.interactionId,
+        input.counterpartySageoId,
+        input.isSender,
         input.requestHash,
         input.intent,
         input.timestamp,
@@ -132,7 +134,9 @@ export class SageoInteractionSDK {
         receipt.outputs?.[0] ??
         (receipt as any).interaction_id ??
         (receipt as any).result?.interaction_id ??
+        (receipt as any).result?.result_interaction_id ??
         (receipt as any).output?.interaction_id ??
+        (receipt as any).output?.result_interaction_id ??
         (receipt as any).ix_operations?.[0]?.data?.interaction_id ??
         (receipt as any).ix_operations?.[0]?.data?.result?.interaction_id;
 
@@ -147,37 +151,29 @@ export class SageoInteractionSDK {
       return interactionId;
     } catch (error) {
       const errorMsg = String(error);
-      if (errorMsg.includes('Caller not enlisted')) {
+      if (errorMsg.includes('not enlisted')) {
         const callerAddr = await getIdentifier(this.wallet!);
         throw new NotEnlistedError(callerAddr, 'caller');
-      }
-      if (errorMsg.includes('Callee not enlisted')) {
-        throw new NotEnlistedError(input.calleeIdentifier, 'callee');
       }
       throw new TransactionError('Failed to log request', undefined, error);
     }
   }
 
-  async logResponse(input: LogResponseInput): Promise<InteractionRecord> {
+  async logResponse(input: LogResponseInput): Promise<void> {
     const driver = this.ensureSigner();
 
     try {
       const ix = await driver.routines.LogResponse(
         input.interactionId,
+        input.counterpartySageoId,
+        input.isSender,
         input.responseHash,
         input.statusCode,
         input.timestamp
       );
 
       const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-      const receipt = await result.wait();
-
-      const record = receipt.outputs?.[0];
-      if (!record) {
-        throw new TransactionError('No record returned from LogResponse');
-      }
-
-      return this.parseRecord(record);
+      await result.wait();
     } catch (error) {
       const errorMsg = String(error);
       if (errorMsg.includes('Interaction not found')) {
@@ -187,9 +183,15 @@ export class SageoInteractionSDK {
     }
   }
 
-  async getInteraction(interactionId: string): Promise<GetInteractionOutput> {
+  async getInteraction(
+    agentIdentifier: string,
+    interactionId: string
+  ): Promise<GetInteractionOutput> {
     try {
-      const result = await this.readDriver.routines.GetInteraction(interactionId);
+      const result = await this.readDriver.routines.GetInteraction(
+        agentIdentifier,
+        interactionId
+      );
       const [record, found] = result;
 
       return {
@@ -197,7 +199,10 @@ export class SageoInteractionSDK {
         found: Boolean(found),
       };
     } catch (error) {
-      throw new QueryError(`Failed to get interaction: ${interactionId}`, error);
+      throw new QueryError(
+        `Failed to get interaction: ${interactionId}`,
+        error
+      );
     }
   }
 

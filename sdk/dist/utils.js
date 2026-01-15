@@ -3,18 +3,12 @@ import { createHash } from 'crypto';
 import { SAGEO_EXTENSION_URI } from './config.js';
 // Re-export SAGEO_EXTENSION_URI for convenience
 export { SAGEO_EXTENSION_URI };
-/**
- * Hash a payload using SHA-256
- */
 export function hashPayload(payload) {
     const jsonString = JSON.stringify(payload);
     const hash = createHash('sha256');
     hash.update(jsonString);
     return hash.digest('hex');
 }
-/**
- * Extract SageoTraceMetadata from an A2A Message
- */
 export function extractSageoMetadata(message) {
     if (!message.metadata) {
         return null;
@@ -25,9 +19,6 @@ export function extractSageoMetadata(message) {
     }
     return metadata;
 }
-/**
- * Get wallet identifier as string
- */
 export async function getIdentifier(wallet) {
     const identifier = wallet.getIdentifier
         ? wallet.getIdentifier()
@@ -39,9 +30,6 @@ export async function getIdentifier(wallet) {
     }
     return identifier.toString ? identifier.toString() : String(identifier);
 }
-/**
- * Extract intent from message parts
- */
 export function extractIntent(message) {
     if (!message.parts || message.parts.length === 0) {
         return 'agent_interaction';

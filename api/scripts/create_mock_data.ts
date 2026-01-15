@@ -1,9 +1,16 @@
 #!/usr/bin/env tsx
 /**
- * Script to create mock agents on the deployed SageoIdentityLogic contract
+ * Script to create mock agents and interactions on the deployed Sageo contracts
  */
 
-import { initializeMOI, getWallet, getLogicDriver, IDENTITY_LOGIC_ID } from '../src/lib/moi-client.js';
+import {
+  initializeMOI,
+  getWallet,
+  getLogicDriver,
+  IDENTITY_LOGIC_ID,
+  INTERACTION_LOGIC_ID,
+  writeLogic,
+} from '../src/lib/moi-client.js';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -89,9 +96,170 @@ const MOCK_AGENTS = [
   }
 ];
 
+async function getWalletAddress(wallet: any): Promise<string | null> {
+  const addressRaw = wallet.getIdentifier
+    ? wallet.getIdentifier()
+    : wallet.getAddress
+      ? await wallet.getAddress()
+      : null;
+
+  if (!addressRaw) {
+    return null;
+  }
+
+  return addressRaw.toString ? addressRaw.toString() : String(addressRaw);
+}
+
+function extractInteractionId(result: any): string | null {
+  return result?.interaction_id
+    ?? result?.result?.interaction_id
+    ?? result?.output?.interaction_id
+    ?? result?.ix_operations?.[0]?.data?.interaction_id
+    ?? result?.ix_operations?.[0]?.data?.result?.interaction_id
+    ?? null;
+}
+
+async function createMockInteractions(address: string, targetAgentId: string): Promise<boolean> {
+  console.log('\nCreating mock interactions...');
+
+  if (!INTERACTION_LOGIC_ID || INTERACTION_LOGIC_ID.trim() === '') {
+    console.error('❌ INTERACTION_LOGIC_ID is not set in moi-client.ts.');
+    console.error('   Please deploy the SageoInteractionLogic contract first.');
+    console.error('   You can deploy it using the deployment scripts in the scripts/ directory.');
+    return false;
+  }
+
+  if (!targetAgentId) {
+    console.error('❌ Missing target agent id for interactions.');
+    return false;
+  }
+
+  // 1. Enlist as targetAgentId
+  console.log(`Enlisting '${targetAgentId}'...`);
+  try {
+    await writeLogic(INTERACTION_LOGIC_ID, 'Enlist', 'interaction', targetAgentId);
+    console.log('✅ Enlisted!');
+  } catch (error) {
+    console.error(`❌ Failed to enlist: ${(error as Error).message}`);
+    return false;
+  }
+
+  // 2. Log Request (Self-Interaction 1)
+  console.log('Logging Request 1...');
+  const ts1 = Math.floor(Date.now() / 1000);
+  let interactionId1: string;
+  try {
+    const req1Result = await writeLogic(
+      INTERACTION_LOGIC_ID,
+      'LogRequest',
+      'interaction',
+      '',  // empty string = generate new interaction_id
+      'agent_2',  // counterparty (callee)
+      true,  // is_sender = true
+      'req_hash_1',
+      'greeting',
+      ts1,
+      'ctx_1', 'task_1', 'msg_1', 'user_1', 'sess_1'
+    ) as any;
+
+    console.log('LogRequest result structure:', JSON.stringify(req1Result, null, 2));
+
+    // Extract interaction_id from return value
+    interactionId1 = extractInteractionId(req1Result);
+
+    if (!interactionId1) {
+      console.error('❌ Failed to extract interaction_id. Full result:', req1Result);
+      if (req1Result?.outputs && req1Result?._raw) {
+        console.error('   Result is still POLO-encoded. Decoding may have failed.');
+      }
+      return false;
+    }
+    console.log(`✅ Got interaction_id: ${interactionId1}`);
+  } catch (error) {
+    console.error(`❌ Failed to log request 1: ${(error as Error).message}`);
+    return false;
+  }
+
+  // 3. Log Response 1
+  console.log('Logging Response 1...');
+  try {
+    await writeLogic(
+      INTERACTION_LOGIC_ID,
+      'LogResponse',
+      'interaction',
+      interactionId1,
+      'agent_2',  // counterparty (callee who sent the response)
+      false,  // is_sender = false (caller is receiving)
+      'resp_hash_1',
+      200,
+      ts1 + 5
+    );
+    console.log('✅ Interaction 1 Complete!');
+  } catch (error) {
+    console.error(`❌ Failed to log response 1: ${(error as Error).message}`);
+    return false;
+  }
+
+  // 4. Log Request 2 (Self-Interaction 2 - Failed)
+  console.log('Logging Request 2 (Failure case)...');
+  let interactionId2: string;
+  try {
+    const req2Result = await writeLogic(
+      INTERACTION_LOGIC_ID,
+      'LogRequest',
+      'interaction',
+      '',  // empty string = generate new interaction_id
+      'agent_2',  // counterparty (callee)
+      true,  // is_sender = true
+      'req_hash_2',
+      'payment',
+      ts1 + 10,
+      'ctx_1', 'task_2', 'msg_2', 'user_1', 'sess_1'
+    ) as any;
+
+    console.log('LogRequest 2 result structure:', JSON.stringify(req2Result, null, 2));
+
+    interactionId2 = extractInteractionId(req2Result);
+
+    if (!interactionId2) {
+      console.error('❌ Failed to extract interaction_id. Full result:', req2Result);
+      if (req2Result?.outputs && req2Result?._raw) {
+        console.error('   Result is still POLO-encoded. Decoding may have failed.');
+      }
+      return false;
+    }
+    console.log(`✅ Got interaction_id: ${interactionId2}`);
+  } catch (error) {
+    console.error(`❌ Failed to log request 2: ${(error as Error).message}`);
+    return false;
+  }
+
+  // 5. Log Response 2
+  console.log('Logging Response 2...');
+  try {
+    await writeLogic(
+      INTERACTION_LOGIC_ID,
+      'LogResponse',
+      'interaction',
+      interactionId2,
+      'agent_2',  // counterparty (callee who sent the response)
+      false,  // is_sender = false (caller is receiving)
+      'resp_hash_2',
+      500,
+      ts1 + 15
+    );
+    console.log('✅ Interaction 2 Complete!');
+  } catch (error) {
+    console.error(`❌ Failed to log response 2: ${(error as Error).message}`);
+    return false;
+  }
+
+  return true;
+}
+
 async function main(): Promise<boolean> {
   console.log('========================================');
-  console.log('Sageo Mock Data Creation');
+  console.log('Sageo Mock Data + Interactions Creation');
   console.log('Network: Devnet (Hardcoded)');
   console.log('========================================\n');
 
@@ -106,7 +274,11 @@ async function main(): Promise<boolean> {
   console.log('🔧 Initializing MOI SDK...');
   await initializeMOI();
   const wallet = getWallet();
-  const address = (wallet as any).getAddress ? await (wallet as any).getAddress() : (wallet as any).getIdentifier ? (wallet as any).getIdentifier() : 'unknown';
+  const address = await getWalletAddress(wallet);
+  if (!address) {
+    console.error('❌ Cannot determine wallet address');
+    return false;
+  }
   console.log(`✅ Wallet address: ${address}\n`);
 
   // Load manifest
@@ -129,7 +301,7 @@ async function main(): Promise<boolean> {
 
   // NOTE: Enlist is not required for RegisterAgent in SageoIdentityLogic
   // The contract doesn't check is_enlisted before allowing agent registration.
-  // Also, the Enlist endpoint uses 'endpoint enlist dynamic' which requires 
+  // Also, the Enlist endpoint uses 'endpoint enlist dynamic' which requires
   // a special interaction type that LogicDriver.routines may not handle correctly.
 
   // Get initial agent count to track sageo_ids
@@ -143,6 +315,8 @@ async function main(): Promise<boolean> {
   } catch (err) {
     console.log('⚠️  Could not get current agent count, starting from 1');
   }
+
+  const createdAgentIds: string[] = [];
 
   for (const agent of MOCK_AGENTS) {
     console.log(`\nRegistering ${agent.name}...`);
@@ -162,17 +336,18 @@ async function main(): Promise<boolean> {
         agent.icon_url,
         agent.documentation_url,
         agent.preferred_transport,
-        address.toString(), // Ensure string format
+        address,
         Math.floor(Date.now() / 1000) // Unix timestamp in seconds
       );
 
       console.log(`⏳ Waiting for confirmation... (Hash: ${ix.hash})`);
-      const receipt = await ix.wait();
+      await ix.wait();
 
       // The sageo_id should be agent_N where N is the next agent number
       // We track this ourselves since the receipt contains POLO-encoded outputs
       const sageo_id = `agent_${nextAgentNumber}`;
       nextAgentNumber++;
+      createdAgentIds.push(sageo_id);
 
       console.log(`✅ Registered ${agent.name} with sageo_id: ${sageo_id}`);
 
@@ -208,6 +383,7 @@ async function main(): Promise<boolean> {
 
   // Verify registration
   console.log('\n📊 Verifying registration...');
+  let allAgentIds: string[] = [];
   try {
     const countResult = await logicDriver.routines.GetAgentCount();
     // MOI SDK returns { output: { count: N }, error: null }
@@ -217,14 +393,29 @@ async function main(): Promise<boolean> {
     const idsResult = await logicDriver.routines.GetAllAgentIds();
     // MOI SDK returns { output: { ids: [...] }, error: null }
     const ids = idsResult?.output?.ids ?? idsResult?.ids ?? [];
-    console.log(`Agent IDs: ${JSON.stringify(ids)}`);
+    allAgentIds = Array.isArray(ids) ? ids : [];
+    console.log(`Agent IDs: ${JSON.stringify(allAgentIds)}`);
 
-    if (ids.length === 0) {
+    if (allAgentIds.length === 0) {
       console.error('❌ No agents found after registration - this indicates a problem');
       hasFailures = true;
     }
   } catch (error) {
     console.error('❌ Failed to verify:', (error as Error).message);
+    hasFailures = true;
+  }
+
+  const targetAgentId = createdAgentIds[0] ?? allAgentIds[0] ?? 'agent_1';
+  if (createdAgentIds.length > 0) {
+    console.log(`Using newly created agent: ${targetAgentId}`);
+  } else if (allAgentIds.length > 0) {
+    console.log(`Using existing agent: ${targetAgentId}`);
+  } else {
+    console.warn("⚠️  No agents found in IdentityLogic. Using fallback 'agent_1' (API might fail to resolve address)");
+  }
+
+  const interactionSuccess = await createMockInteractions(address, targetAgentId);
+  if (!interactionSuccess) {
     hasFailures = true;
   }
 
@@ -235,12 +426,12 @@ main()
   .then((success) => {
     if (success) {
       console.log('\n========================================');
-      console.log('✨ Mock Data Creation SUCCESSFUL!');
+      console.log('✨ Mock Data + Interactions Creation SUCCESSFUL!');
       console.log('========================================\n');
       process.exit(0);
     } else {
       console.log('\n========================================');
-      console.log('❌ Mock Data Creation FAILED');
+      console.log('❌ Mock Data + Interactions Creation FAILED');
       console.log('========================================\n');
       process.exit(1);
     }

@@ -91,7 +91,9 @@ export class SageoA2AClientWrapper {
     let interactionId: string;
     try {
       interactionId = await this.sageoClient.interaction.logRequest({
-        calleeIdentifier: calleeAddress,
+        interactionId: '',
+        counterpartySageoId: calleeAddress,
+        isSender: true,
         requestHash,
         intent,
         timestamp: BigInt(Math.floor(Date.now() / 1000)),

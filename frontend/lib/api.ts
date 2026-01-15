@@ -143,8 +143,11 @@ export async function fetchRecentInteractions(limit: number = 10): Promise<Inter
     return data.interactions || [];
 }
 
-export async function fetchInteraction(interactionId: string): Promise<InteractionRecord | null> {
-    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}`);
+export async function fetchInteraction(
+    interactionId: string,
+    sageoId: string
+): Promise<InteractionRecord | null> {
+    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}?sageo_id=${encodeURIComponent(sageoId)}`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Failed to fetch interaction: ${res.status}`);
     return res.json();
@@ -167,8 +170,11 @@ export async function fetchAgentStats(sageoId: string): Promise<AgentInteraction
     return data.stats || null;
 }
 
-export async function verifyInteraction(interactionId: string): Promise<{ verified: boolean; on_chain_hash: string; timestamp: number } | null> {
-    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}/verify`);
+export async function verifyInteraction(
+    interactionId: string,
+    sageoId: string
+): Promise<{ verified: boolean; on_chain_hash: string; timestamp: number } | null> {
+    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}/verify?sageo_id=${encodeURIComponent(sageoId)}`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Failed to verify interaction: ${res.status}`);
     return res.json();

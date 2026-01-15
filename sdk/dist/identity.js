@@ -29,10 +29,7 @@ export class SageoIdentitySDK {
         }
         let readDriver;
         try {
-            // LogicDriver requires a Wallet, not a Provider
-            // For read operations, we need a wallet (can be the same wallet or a read-only one)
             if (!wallet) {
-                // Create a temporary wallet for read operations if no wallet provided
                 wallet = await createWallet(config.privateKey || '', provider);
             }
             readDriver = await loadContract({ logicId: config.logicId, manifest: config.manifest }, wallet);
@@ -48,9 +45,6 @@ export class SageoIdentitySDK {
         }
         return this.writeDriver;
     }
-    /**
-     * Enlist in the IdentityLogic contract
-     */
     async enlist() {
         const driver = this.ensureSigner();
         try {
@@ -62,22 +56,33 @@ export class SageoIdentitySDK {
             throw new TransactionError('Failed to enlist', undefined, error);
         }
     }
-    /**
-     * Register a new agent with full AgentCard
-     */
     async registerAgent(input) {
         const driver = this.ensureSigner();
         const card = input.agentCard;
-        // Get wallet address
         const walletAddress = await getIdentifier(this.wallet);
-        // Convert AgentCard to contract format
         const defaultInputModes = JSON.stringify(card.defaultInputModes || []);
         const defaultOutputModes = JSON.stringify(card.defaultOutputModes || []);
         try {
-            const ix = await driver.routines.RegisterAgent(card.name, card.description, card.version, card.url, card.protocolVersion, defaultInputModes, defaultOutputModes, card.capabilities?.streaming || false, card.capabilities?.pushNotifications || false, card.capabilities?.stateTransitionHistory || false, card.iconUrl || '', card.documentationUrl || '', card.preferredTransport || 'JSONRPC', walletAddress, BigInt(Math.floor(Date.now() / 1000)));
+            let ix;
+            try {
+                const registerAgentCall = driver.routines.RegisterAgent(card.name, card.description, card.version, card.url, card.protocolVersion, defaultInputModes, defaultOutputModes, card.capabilities?.streaming || false, card.capabilities?.pushNotifications || false, card.capabilities?.stateTransitionHistory || false, card.iconUrl || '', card.documentationUrl || '', card.preferredTransport || 'JSONRPC', walletAddress, BigInt(Math.floor(Date.now() / 1000)));
+                // Add timeout to detect hanging calls
+                const timeoutPromise = new Promise((_, reject) => {
+                    setTimeout(() => {
+                        reject(new Error('RegisterAgent call timed out after 30 seconds - account may not exist on-chain'));
+                    }, 30000);
+                });
+                ix = await Promise.race([registerAgentCall, timeoutPromise]);
+            }
+            catch (createIxError) {
+                const errorMsg = createIxError instanceof Error ? createIxError.message : String(createIxError);
+                if (errorMsg.includes('account not found') || errorMsg.includes('timed out')) {
+                    throw new TransactionError(`Account at address ${walletAddress} does not exist on MOI devnet. The account must be funded and initialized before registering an agent. Please ensure the mnemonic corresponds to a funded account.`, undefined, createIxError);
+                }
+                throw createIxError;
+            }
             const result = await ix.send({ fuelPrice: 1, fuelLimit: 5000 });
             const receipt = await result.wait();
-            // Extract sageo_id from receipt (try multiple locations)
             const sageoId = receipt.outputs?.[0] ??
                 receipt.sageo_id ??
                 receipt.result?.sageo_id ??
@@ -98,9 +103,6 @@ export class SageoIdentitySDK {
             throw new TransactionError('Failed to register agent', undefined, error);
         }
     }
-    /**
-     * Get agent profile by sageo_id
-     */
     async getAgentProfile(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentProfile(sageoId);
@@ -108,7 +110,7 @@ export class SageoIdentitySDK {
             if (!found) {
                 return { profile: null, found: false };
             }
-            // Fetch card and skills separately (due to Cocolang limitation)
+            // Fetch card and skills separately
             const cardResult = await this.getAgentCard(sageoId);
             const skillsResult = await this.getAgentSkills(sageoId);
             const profile = this.parseProfile(profileData);
@@ -128,9 +130,6 @@ export class SageoIdentitySDK {
             throw new QueryError(`Failed to get agent profile: ${sageoId}`, error);
         }
     }
-    /**
-     * Get agent card by sageo_id (without skills)
-     */
     async getAgentCard(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentCard(sageoId);
@@ -149,9 +148,6 @@ export class SageoIdentitySDK {
             throw new QueryError(`Failed to get agent card: ${sageoId}`, error);
         }
     }
-    /**
-     * Get agent skills by sageo_id
-     */
     async getAgentSkills(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentSkills(sageoId);
@@ -166,17 +162,19 @@ export class SageoIdentitySDK {
             throw new QueryError(`Failed to get agent skills: ${sageoId}`, error);
         }
     }
-    /**
-     * Get agent profile by wallet address
-     */
     async getMyProfile() {
         if (!this.wallet) {
             throw new SignerRequiredError('getMyProfile');
         }
         const walletAddress = await getIdentifier(this.wallet);
         try {
-            // Get all agent IDs and find one with matching wallet_address
-            const idsResult = await this.readDriver.routines.GetAllAgentIds();
+            let idsResult;
+            try {
+                idsResult = await this.readDriver.routines.GetAllAgentIds();
+            }
+            catch (getAllError) {
+                throw getAllError;
+            }
             const ids = idsResult.ids || idsResult || [];
             for (const id of ids) {
                 const profileResult = await this.getAgentProfile(String(id));
@@ -188,12 +186,13 @@ export class SageoIdentitySDK {
             return null;
         }
         catch (error) {
+            const errorMsg = String(error);
+            if (errorMsg.includes('account not found')) {
+                return null;
+            }
             throw new QueryError('Failed to get my profile', error);
         }
     }
-    /**
-     * Get agent profile by URL
-     */
     async getAgentByUrl(url) {
         try {
             const result = await this.readDriver.routines.GetAgentByUrl(url);
@@ -211,9 +210,6 @@ export class SageoIdentitySDK {
             throw new QueryError(`Failed to get agent by URL: ${url}`, error);
         }
     }
-    /**
-     * Add a skill to an agent
-     */
     async addSkill(sageoId, skill) {
         const driver = this.ensureSigner();
         try {
@@ -236,7 +232,7 @@ export class SageoIdentitySDK {
             status: raw.status || AgentStatus.ACTIVE,
             created_at: BigInt(raw.created_at || 0),
             updated_at: BigInt(raw.updated_at || 0),
-            agent_card: {}, // Will be filled by getAgentCard
+            agent_card: {},
         };
     }
     parseProfileMeta(raw) {
@@ -265,7 +261,7 @@ export class SageoIdentitySDK {
                 pushNotifications: Boolean(raw.capabilities?.push_notifications || false),
                 stateTransitionHistory: Boolean(raw.capabilities?.state_transition_history || false),
             },
-            skills: [], // Skills fetched separately
+            skills: [],
             iconUrl: raw.icon_url ? String(raw.icon_url) : undefined,
             documentationUrl: raw.documentation_url
                 ? String(raw.documentation_url)
@@ -276,8 +272,6 @@ export class SageoIdentitySDK {
         };
     }
     parseSkill(raw) {
-        // tags in contract is stored as string (comma-separated), but AgentSkill expects string[]
-        // Parse comma-separated tags into array
         const tagsString = String(raw.tags || '');
         const tags = tagsString ? tagsString.split(',').map((t) => t.trim()).filter((t) => t.length > 0) : [];
         return {

@@ -29,7 +29,9 @@ export interface AgentInteractionStats {
     last_interaction_at: bigint;
 }
 export interface LogRequestInput {
-    calleeIdentifier: string;
+    interactionId: string;
+    counterpartySageoId: string;
+    isSender: boolean;
     requestHash: string;
     intent: string;
     timestamp: bigint;
@@ -41,6 +43,8 @@ export interface LogRequestInput {
 }
 export interface LogResponseInput {
     interactionId: string;
+    counterpartySageoId: string;
+    isSender: boolean;
     responseHash: string;
     statusCode: bigint;
     timestamp: bigint;

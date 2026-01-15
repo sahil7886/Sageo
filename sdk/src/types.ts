@@ -43,7 +43,9 @@ export interface AgentInteractionStats {
 }
 
 export interface LogRequestInput {
-  calleeIdentifier: string;
+  interactionId: string; // Empty string for first call (generates new ID), provided ID for subsequent calls
+  counterpartySageoId: string;
+  isSender: boolean;
   requestHash: string;
   intent: string;
   timestamp: bigint;
@@ -56,6 +58,8 @@ export interface LogRequestInput {
 
 export interface LogResponseInput {
   interactionId: string;
+  counterpartySageoId: string;
+  isSender: boolean;
   responseHash: string;
   statusCode: bigint;
   timestamp: bigint;

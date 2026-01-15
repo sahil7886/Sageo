@@ -8,15 +8,14 @@ import { SageoClient } from '../src/index.js';
 import type { AgentCard } from '../src/index.js';
 
 // Contract addresses (from deployment)
-const IDENTITY_LOGIC_ID = '0x20000000865b8e9d17a93e28d83f1f873e2981e8cacf58a9425ad23900000000';
-const INTERACTION_LOGIC_ID = '0x20000000c9a634c87c3173259f2b11d5389bf78ab4f0b6b7d61585d100000000';
+const IDENTITY_LOGIC_ID = "0x20000000dde5e9ffe5379835797c1922255fe98b23d6cbb086711add00000000";
+const INTERACTION_LOGIC_ID = "0x20000000a6592ea994ed5cb34691a12efffbefbf2b2c19d4f9d09dd100000000";
 
 // MOI RPC URL for devnet
 const MOI_RPC_URL = 'https://voyage-rpc.moi.technology';
 
-// Agent mnemonic (same as used in API for consistency)
-// Note: This is the "agent_key" parameter - it's actually a mnemonic, not a private key
-const AGENT_MNEMONIC = 'metal foil release inquiry slice deny cake blame sustain fault now sugar';
+// Agent mnemonic
+const AGENT_MNEMONIC = 'repair cycle monitor satisfy warfare forest decorate reveal update economy pizza lift';
 
 // Test agent card
 const TEST_AGENT_CARD: AgentCard = {
@@ -174,7 +173,6 @@ async function testSDK() {
       console.error('\nStack trace:');
       console.error(error.stack);
     }
-    process.exit(1);
   }
 }
 
@@ -182,9 +180,7 @@ async function testSDK() {
 testSDK()
   .then(() => {
     console.log('Test completed successfully');
-    process.exit(0);
   })
   .catch((error) => {
     console.error('Test failed:', error);
-    process.exit(1);
   });

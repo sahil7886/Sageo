@@ -1,15 +1,15 @@
 #!/bin/bash
-# test-contract.sh - Runs the full SageoLogic test suite
+# test-contract.sh - Runs the full SageoInteractionLogic test suite
 
 set -e  # Exit on any error
 
 echo "=========================================="
-echo "SageoLogic Test Suite"
+echo "SageoInteractionLogic Test Suite"
 echo "=========================================="
 echo ""
 
 # Step 1: Compile the logic
-echo "📦 Compiling SageoLogic..."
+echo "📦 Compiling SageoInteractionLogic..."
 coco compile .
 if [ $? -ne 0 ]; then
     echo "❌ Compilation failed!"

@@ -57,9 +57,14 @@ echo "=== Interaction API Tests ==="
 echo "12. GET /interactions/recent?limit=5"
 curl -s "$BASE_URL/interactions/recent?limit=5" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Recent Interactions: {len(d.get(\"interactions\",[]))}')"
 
-# Test 13: GET /interactions/:id (ix_1)
-echo "13. GET /interactions/ix_1"
-curl -s "$BASE_URL/interactions/ix_1" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Interaction: {d.get(\"interaction_id\",\"?\")} ({d.get(\"intent\",\"?\")})')"
+# Test 13: GET /interactions/:id (first interaction for agent_1)
+echo "13. GET /interactions/:id (agent_1)"
+INTERACTION_ID=$(curl -s "$BASE_URL/agents/agent_1/interactions?limit=1&offset=0" | python3 -c "import sys,json; d=json.load(sys.stdin); interactions=d.get('interactions',[]); print(interactions[0].get('interaction_id','') if interactions else '')")
+if [ -z "$INTERACTION_ID" ]; then
+  echo "   Interaction: none"
+else
+  curl -s "$BASE_URL/interactions/$INTERACTION_ID?sageo_id=agent_1" | python3 -c "import sys,json; d=json.load(sys.stdin); print(f'   Interaction: {d.get(\"interaction_id\",\"?\")} ({d.get(\"intent\",\"?\")})')"
+fi
 
 # Test 14: GET /agents/:id/interactions
 echo "14. GET /agents/agent_1/interactions"
