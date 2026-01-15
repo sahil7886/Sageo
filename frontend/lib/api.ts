@@ -1,7 +1,10 @@
 // API client for Sageo frontend
 // Connects to the Sageo Explorer API
 
-const API_BASE_URL = (typeof process !== 'undefined' && process.env?.API_URL)
+const VITE_API_URL =
+    typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_URL : undefined;
+const API_BASE_URL = VITE_API_URL
+    || (typeof process !== 'undefined' && process.env?.API_URL)
     || 'http://localhost:3001';
 
 // Types matching API responses
@@ -21,6 +24,8 @@ export interface AgentCard {
     url?: string;
     version?: string;
     documentationUrl?: string;
+    iconUrl?: string;
+    protocolVersion?: string;
     provider?: {
         organization?: string;
         url?: string;
@@ -40,11 +45,74 @@ export interface AgentCard {
 export interface AgentProfile {
     sageo_id: string;
     owner: string;
-    status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
+    status: 'ACTIVE' | 'PAUSED' | 'DEPRECATED' | 'INACTIVE' | 'SUSPENDED';
     registered_at?: number;
     updated_at?: number;
     agent_card?: AgentCard;
 }
+
+const parseJsonArray = (value: unknown): string[] | undefined => {
+    if (Array.isArray(value)) {
+        return value.map((item) => String(item));
+    }
+    if (typeof value !== 'string') {
+        return undefined;
+    }
+
+    const trimmed = value.trim();
+    if (trimmed === '') {
+        return [];
+    }
+
+    try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+            return parsed.map((item) => String(item));
+        }
+    } catch {
+        // Fall through to comma-split fallback.
+    }
+
+    return trimmed.split(',').map((entry) => entry.trim()).filter(Boolean);
+};
+
+const normalizeSkill = (raw: any): AgentSkill => ({
+    id: raw?.id ?? raw?.skill_id ?? '',
+    name: raw?.name ?? raw?.skill_name ?? '',
+    description: raw?.description ?? raw?.skill_description,
+    tags: raw?.tags ?? raw?.skill_tags,
+    examples: parseJsonArray(raw?.examples ?? raw?.skill_examples),
+    inputModes: parseJsonArray(raw?.input_modes ?? raw?.skill_input_modes ?? raw?.inputModes),
+    outputModes: parseJsonArray(raw?.output_modes ?? raw?.skill_output_modes ?? raw?.outputModes),
+});
+
+const normalizeCard = (raw: any): AgentCard => ({
+    name: raw?.name ?? '',
+    description: raw?.description,
+    url: raw?.url,
+    version: raw?.version,
+    documentationUrl: raw?.documentationUrl ?? raw?.documentation_url,
+    iconUrl: raw?.iconUrl ?? raw?.icon_url,
+    protocolVersion: raw?.protocolVersion ?? raw?.protocol_version,
+    capabilities: raw?.capabilities
+        ? {
+            streaming: raw.capabilities.streaming,
+            pushNotifications: raw.capabilities.pushNotifications ?? raw.capabilities.push_notifications,
+            stateTransitionHistory:
+                raw.capabilities.stateTransitionHistory ?? raw.capabilities.state_transition_history,
+        }
+        : undefined,
+    skills: Array.isArray(raw?.skills) ? raw.skills.map(normalizeSkill) : undefined,
+});
+
+const normalizeProfile = (raw: any): AgentProfile => ({
+    sageo_id: raw?.sageo_id ?? '',
+    owner: raw?.owner ?? '',
+    status: raw?.status ?? 'INACTIVE',
+    registered_at: raw?.registered_at ?? raw?.created_at,
+    updated_at: raw?.updated_at,
+    agent_card: raw?.agent_card ? normalizeCard(raw.agent_card) : undefined,
+});
 
 // API Functions
 
@@ -65,7 +133,8 @@ export async function fetchAgents(params?: {
     const url = `${API_BASE_URL}/agents${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch agents: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeProfile) : [];
 }
 
 export async function searchAgents(query: string, limit?: number): Promise<AgentProfile[]> {
@@ -74,21 +143,24 @@ export async function searchAgents(query: string, limit?: number): Promise<Agent
 
     const res = await fetch(`${API_BASE_URL}/agents/search?${searchParams.toString()}`);
     if (!res.ok) throw new Error(`Failed to search agents: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeProfile) : [];
 }
 
 export async function fetchAgentProfile(sageoId: string): Promise<AgentProfile | null> {
     const res = await fetch(`${API_BASE_URL}/agents/${sageoId}`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Failed to fetch agent profile: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return data ? normalizeProfile(data) : null;
 }
 
 export async function fetchAgentCard(sageoId: string): Promise<AgentCard | null> {
     const res = await fetch(`${API_BASE_URL}/agents/${sageoId}/card`);
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Failed to fetch agent card: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return data ? normalizeCard(data) : null;
 }
 
 export async function fetchAgentsBySkill(skillId: string, limit?: number): Promise<AgentProfile[]> {
@@ -98,13 +170,15 @@ export async function fetchAgentsBySkill(skillId: string, limit?: number): Promi
     const url = `${API_BASE_URL}/agents/by-skill/${skillId}${searchParams.toString() ? '?' + searchParams.toString() : ''}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch agents by skill: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return Array.isArray(data) ? data.map(normalizeProfile) : [];
 }
 
 export async function fetchAgentByUrl(url: string): Promise<AgentProfile | null> {
     const res = await fetch(`${API_BASE_URL}/agents/by-url?url=${encodeURIComponent(url)}`);
     if (!res.ok) throw new Error(`Failed to fetch agent by URL: ${res.status}`);
-    return res.json();
+    const data = await res.json();
+    return data ? normalizeProfile(data) : null;
 }
 
 // ============== INTERACTION TYPES ==============
@@ -190,6 +264,9 @@ export interface RegisterAgentPayload {
 
 export interface RegisterAgentResponse {
   sageo_id: string;
+  mnemonic?: string;
+  wallet_address?: string;
+  warning?: string;
 }
 
 export async function registerAgent(payload: RegisterAgentPayload): Promise<RegisterAgentResponse> {

@@ -1,9 +1,13 @@
 import { Router, Request, Response, NextFunction } from 'express';
+import { getAgentWalletAddress } from '../lib/agent-mnemonics.js';
 import { requireContract } from '../lib/deps.js';
 import { validateSageoId } from '../lib/validate.js';
 import { NotFoundError, ApiError } from '../lib/errors.js';
-import { readLogic, writeLogic, IDENTITY_LOGIC_ID } from '../lib/moi-client.js';
+import { getActorInteractions, getActorStats } from '../lib/interaction-state.js';
+import { readLogic, writeLogic, IDENTITY_LOGIC_ID, INTERACTION_LOGIC_ID, MOI_DERIVATION_PATH } from '../lib/moi-client.js';
 import { getConfig } from '../lib/config.js';
+import { Wallet } from 'js-moi-sdk';
+import { generateMnemonic } from 'js-moi-bip39';
 
 const router = Router();
 
@@ -338,29 +342,11 @@ router.get('/:sageo_id', async (req: Request, res: Response, next: NextFunction)
 router.get('/:sageo_id/interactions', async (req, res, next) => {
   try {
     const sageo_id = validateSageoId(req.params.sageo_id);
-    const { INTERACTION_LOGIC_ID } = await import('../lib/moi-client.js');
-    const { getConfig } = await import('../lib/config.js');
-    const { requireContract } = await import('../lib/deps.js');
-
     if (!INTERACTION_LOGIC_ID) {
       return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
     }
 
-    // Resolve SageoID to Address via IdentityLogic
-    const identityAddress = requireContract('identity');
-    const config = getConfig();
-    const profileResult = await readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageo_id) as any;
-
-    // Check if agent exists
-    if (!profileResult || profileResult.error || (profileResult.output && !profileResult.output.found)) {
-      // Agent not found -> empty interactions
-      return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
-    }
-
-    // Extract address. Profile struct has wallet_address
-    const profile = profileResult.output?.profile ?? profileResult.profile;
-    const agentAddress = profile?.wallet_address;
-
+    const agentAddress = getAgentWalletAddress(sageo_id);
     if (!agentAddress) {
       return res.json({ interactions: [], total: 0, limit: 0, offset: 0 });
     }
@@ -368,21 +354,7 @@ router.get('/:sageo_id/interactions', async (req, res, next) => {
     const limit = parseInt(req.query.limit as string) || 20;
     const offset = parseInt(req.query.offset as string) || 0;
 
-    const result = await readLogic(
-      null,
-      INTERACTION_LOGIC_ID,
-      'ListInteractionsByAgent',
-      'interaction',
-      agentAddress,
-      limit,
-      offset,
-      { fuelLimit: 100000, fuelPrice: 1 }
-    ) as any;
-
-    // Static endpoints return { output: { records: [...], total: N }, error: null }
-    const output = result?.output || result;
-    const interactions = output?.records || [];
-    const total = output?.total || 0;
+    const { interactions, total } = await getActorInteractions(agentAddress, limit, offset);
 
     res.json({
       interactions,
@@ -399,41 +371,17 @@ router.get('/:sageo_id/interactions', async (req, res, next) => {
 router.get('/:sageo_id/stats', async (req, res, next) => {
   try {
     const sageo_id = validateSageoId(req.params.sageo_id);
-    const { INTERACTION_LOGIC_ID } = await import('../lib/moi-client.js');
-    const { getConfig } = await import('../lib/config.js');
-    const { requireContract } = await import('../lib/deps.js');
-
     if (!INTERACTION_LOGIC_ID) {
       return res.json({ stats: null });
     }
 
-    // Resolve SageoID to Address
-    const identityAddress = requireContract('identity');
-    const config = getConfig();
-    const profileResult = await readLogic(config, identityAddress, 'GetAgentProfile', 'identity', sageo_id) as any;
-
-    if (!profileResult || profileResult.error || (profileResult.output && !profileResult.output.found)) {
-      return res.json({ stats: null });
-    }
-
-    const profile = profileResult.output?.profile ?? profileResult.profile;
-    const agentAddress = profile?.wallet_address;
-
+    const agentAddress = getAgentWalletAddress(sageo_id);
     if (!agentAddress) {
       return res.json({ stats: null });
     }
 
-    const result = await readLogic(
-      null,
-      INTERACTION_LOGIC_ID,
-      'GetAgentInteractionStats',
-      'interaction',
-      agentAddress
-    ) as any;
-
-    // Static endpoints return { output: { stats: {...}, found: bool }, error: null }
-    const output = result?.output || result;
-    if (!output || !output.found) {
+    const stats = await getActorStats(agentAddress);
+    if (!stats) {
       return res.json({
         stats: {
           total_requests_sent: 0,
@@ -446,13 +394,13 @@ router.get('/:sageo_id/stats', async (req, res, next) => {
       });
     }
 
-    res.json({ stats: output.stats });
+    res.json({ stats });
   } catch (error) {
     next(error);
   }
 });
 
-// POST /agents/register - Register a new agent
+// POST /agents/register - Register a new agent with independent wallet
 router.post('/register', async (req: Request, res: Response, next: NextFunction) => {
   try {
     const {
@@ -461,7 +409,6 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
       version,
       url = '',
       tags = [],
-      wallet_address = '',
       icon_url = '',
       documentation_url = '',
       preferred_transport = 'HTTP+JSON',
@@ -476,6 +423,13 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
     if (!name || !version) {
       return res.status(400).json({ error: 'name and version are required' });
     }
+
+    // Generate new mnemonic and wallet for this agent
+    const mnemonic = generateMnemonic();
+    const wallet = await Wallet.fromMnemonic(mnemonic, MOI_DERIVATION_PATH);
+    const wallet_address = wallet.getIdentifier();
+
+    console.log(`🔑 Generated wallet for agent "${name}": ${wallet_address}`);
 
     const timestamp = Date.now();
 
@@ -503,11 +457,16 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
     // result may be { sageo_id } or raw receipt; normalize
     const sageo_id = (result as any)?.sageo_id ?? (result as any)?.output?.sageo_id ?? (result as any)?.result?.sageo_id;
 
-    return res.status(201).json({ sageo_id, result });
+    return res.status(201).json({
+      sageo_id,
+      mnemonic,
+      wallet_address,
+      warning: '⚠️  IMPORTANT: Save this mnemonic securely. It will not be shown again and is required to perform actions as this agent.',
+      result
+    });
   } catch (err) {
     next(err);
   }
 });
 
 export default router;
-

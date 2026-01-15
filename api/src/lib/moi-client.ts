@@ -14,8 +14,9 @@ export const MOI_DERIVATION_PATH = "m/44'/6174'/7020'/0/0";
 export const MOI_NETWORK = 'devnet';
 
 // DEPLOYED CONTRACT ADDRESSES (Updated after deployment)
-export const IDENTITY_LOGIC_ID = "0x20000000b7121d400803c8af891614911c1df6b8c1e9aff64e788a0c00000000";
-export const INTERACTION_LOGIC_ID = "0x200000006b02c2beead8f04745dd36e14512c4cc2b20ff8c722cb9fc00000000";
+export const IDENTITY_LOGIC_ID = "0x20000000c90ca229fda422445dc1e27e6dd7db98b1cb94f29899c4ea00000000";
+export const INTERACTION_LOGIC_ID = "0x20000000dc38f3e52ba02ae87361977cdc34a2a99f28fc0461f4f94800000000";
+
 
 // Cache for logic manifests
 const manifestCache: Map<string, any> = new Map();
