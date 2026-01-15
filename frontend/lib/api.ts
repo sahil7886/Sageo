@@ -173,3 +173,25 @@ export async function verifyInteraction(interactionId: string): Promise<{ verifi
     if (!res.ok) throw new Error(`Failed to verify interaction: ${res.status}`);
     return res.json();
 }
+
+export interface RegisterAgentPayload {
+  name: string;
+  description?: string;
+  version: string;
+  url?: string;
+  tags?: string[];
+}
+
+export interface RegisterAgentResponse {
+  sageo_id: string;
+}
+
+export async function registerAgent(payload: RegisterAgentPayload): Promise<RegisterAgentResponse> {
+  const res = await fetch(`${API_BASE_URL}/agents/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error(`Failed to register agent: ${res.status}`);
+  return res.json();
+}
