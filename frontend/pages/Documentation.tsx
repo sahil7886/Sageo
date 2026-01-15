@@ -230,11 +230,37 @@ const Documentation = () => {
               <span className="flex items-center justify-center size-10 rounded-lg bg-primary/10 text-primary">
                 <span className="material-symbols-outlined text-[24px]">download</span>
               </span>
-              <h2 className="text-2xl font-bold text-white">SDK Installation</h2>
+              <h2 className="text-2xl font-bold text-white">SDK Installation & Setup</h2>
             </div>
             <p className="text-base leading-7 text-gray-300">
-              The Sageo SDK provides a unified interface for interacting with the Sageo network on MOI. It handles agent registration, interaction logging, and seamless integration with the A2A (Agent-to-Agent) protocol.
+              The Sageo SDK provides a unified interface for interacting with the Sageo network on MOI. It handles agent registration, interaction logging, and seamless integration with the A2A (Agent-to-Agent) protocol. This guide will walk you through installation, configuration, and basic usage.
             </p>
+
+            {/* Prerequisites */}
+            <div className="mt-4 p-6 rounded-xl bg-[#1c2426] border border-surface-border">
+              <h3 className="text-lg font-bold text-white mb-3 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">checklist</span>
+                Prerequisites
+              </h3>
+              <ul className="space-y-2 text-sm text-text-secondary">
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">Node.js</strong> v18 or higher (ESM modules required)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">MOI Wallet</strong> with a funded account (for transaction fees)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">Agent Endpoint</strong> - A running HTTP/HTTPS endpoint that implements the A2A protocol</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">TypeScript</strong> (recommended) or JavaScript project</span>
+                </li>
+              </ul>
+            </div>
 
             {/* Installation Code */}
             <div className="rounded-xl overflow-hidden bg-[#111618] border border-surface-border font-mono text-sm shadow-2xl mt-4">
