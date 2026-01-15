@@ -1,5 +1,6 @@
 export { SageoClient } from './sageo-client.js';
 export { SageoA2AClientWrapper } from './a2a-wrapper.js';
+export { SageoRequestHandler } from './request-handler.js';
 export { SageoInteractionSDK } from './interaction.js';
 export { SageoIdentitySDK } from './identity.js';
 export type { InteractionRecord, AgentInteractionStats, LogRequestInput, LogResponseInput, ListInteractionsInput, GetInteractionOutput, ListInteractionsOutput, GetStatsOutput, SDKConfig, AgentProfile, AgentProfileMeta, SageoTraceMetadata, SageoMetadataEnvelope, RegisterAgentInput, GetAgentProfileOutput, GetAgentCardOutput, GetAgentSkillsOutput, } from './types.js';

@@ -6,8 +6,7 @@ import { IDENTITY_MANIFEST_PATH, INTERACTION_MANIFEST_PATH, } from './config.js'
 import { getIdentifier } from './utils.js';
 // Manifest cache
 const manifestCache = new Map();
-export async function createProvider(rpcUrl) {
-    const url = rpcUrl || 'https://voyage-rpc.moi.technology';
+export async function createProvider() {
     return new VoyageProvider('devnet');
 }
 export async function createWallet(privateKey, provider) {

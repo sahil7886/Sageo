@@ -1,6 +1,7 @@
 // sdk/src/index.ts
 export { SageoClient } from './sageo-client.js';
 export { SageoA2AClientWrapper } from './a2a-wrapper.js';
+export { SageoRequestHandler } from './request-handler.js';
 export { SageoInteractionSDK } from './interaction.js';
 export { SageoIdentitySDK } from './identity.js';
 

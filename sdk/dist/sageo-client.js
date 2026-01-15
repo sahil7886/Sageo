@@ -1,7 +1,9 @@
 import { SageoIdentitySDK } from './identity.js';
 import { SageoInteractionSDK } from './interaction.js';
 import { SageoA2AClientWrapper } from './a2a-wrapper.js';
+import { SageoRequestHandler } from './request-handler.js';
 import { loadManifest, DEFAULT_IDENTITY_LOGIC_ID, DEFAULT_INTERACTION_LOGIC_ID, } from './config.js';
+import { normalizeIdentifier } from './utils.js';
 export class SageoClient {
     moiRpcUrl;
     agentKey;
@@ -94,6 +96,12 @@ export class SageoClient {
         }
         return new SageoA2AClientWrapper(a2aClient, this, remoteAgentCard, this.mySageoId);
     }
+    wrapRequestHandler(handler) {
+        if (!this.initialized) {
+            throw new Error('SageoClient not initialized. Call initialize() first or use await getMyProfile()');
+        }
+        return new SageoRequestHandler(handler, this);
+    }
     async getAgentCard(sageoId) {
         await this.initialize();
         const cardResult = await this.identitySDK.getAgentCard(sageoId);
@@ -122,7 +130,7 @@ export class SageoClient {
     async resolveSageoIdToAddress(sageoId) {
         await this.initialize();
         const profile = await this.getAgentProfile(sageoId);
-        return profile.wallet_address;
+        return normalizeIdentifier(profile.wallet_address);
     }
     // Expose SDKs for internal use
     get identity() {

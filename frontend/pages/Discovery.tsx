@@ -128,7 +128,7 @@ const Discovery = () => {
             <div>
                <h4 className="text-xs font-bold text-text-secondary uppercase tracking-wider mb-3">Skills & Tags</h4>
                <div className="flex flex-wrap gap-2">
-                  {['DeFi', 'Arbitrage', 'NLP', 'Analysis', 'Trading', 'Image Gen', 'Coding'].map((tag) => (
+                  {['Weather', 'Stocks', 'NLP', 'Analysis', 'Trading', 'Image Gen', 'Coding'].map((tag) => (
                      <button
                         key={tag}
                         onClick={() => handleTagToggle(tag.toLowerCase())}

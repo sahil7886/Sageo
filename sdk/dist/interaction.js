@@ -1,4 +1,5 @@
 import { createProvider, createWallet, loadContract, getIdentifier, } from './client.js';
+import { normalizeIdentifier } from './utils.js';
 import { ContractLoadError, SignerRequiredError, NotEnlistedError, InteractionNotFoundError, TransactionError, QueryError, } from './errors.js';
 export class SageoInteractionSDK {
     provider;
@@ -14,7 +15,7 @@ export class SageoInteractionSDK {
         this.logicId = logicId;
     }
     static async init(config) {
-        const provider = await createProvider(config.rpcUrl);
+        const provider = await createProvider();
         let wallet;
         let writeDriver;
         if (config.privateKey) {
@@ -102,11 +103,16 @@ export class SageoInteractionSDK {
     }
     async getInteraction(agentIdentifier, interactionId) {
         try {
-            const result = await this.readDriver.routines.GetInteraction(agentIdentifier, interactionId);
-            const [record, found] = result;
+            const normalizedIdentifier = normalizeIdentifier(agentIdentifier);
+            const result = await this.readDriver.routines.GetInteraction(normalizedIdentifier, interactionId);
+            const output = Array.isArray(result)
+                ? { record: result[0], found: result[1] }
+                : result?.output ?? result;
+            const record = output?.record;
+            const found = Boolean(output?.found);
             return {
                 record: found ? this.parseRecord(record) : {},
-                found: Boolean(found),
+                found,
             };
         }
         catch (error) {
@@ -115,8 +121,13 @@ export class SageoInteractionSDK {
     }
     async listInteractionsByAgent(input) {
         try {
-            const result = await this.readDriver.routines.ListInteractionsByAgent(input.agentIdentifier, input.limit, input.offset);
-            const [records, total] = result;
+            const normalizedIdentifier = normalizeIdentifier(input.agentIdentifier);
+            const result = await this.readDriver.routines.ListInteractionsByAgent(normalizedIdentifier, input.limit, input.offset);
+            const output = Array.isArray(result)
+                ? { records: result[0], total: result[1] }
+                : result?.output ?? result;
+            const records = output?.records ?? [];
+            const total = output?.total ?? 0;
             return {
                 records: records.map((r) => this.parseRecord(r)),
                 total: BigInt(total),
@@ -128,11 +139,16 @@ export class SageoInteractionSDK {
     }
     async getAgentStats(agentIdentifier) {
         try {
-            const result = await this.readDriver.routines.GetAgentInteractionStats(agentIdentifier);
-            const [stats, found] = result;
+            const normalizedIdentifier = normalizeIdentifier(agentIdentifier);
+            const result = await this.readDriver.routines.GetAgentInteractionStats(normalizedIdentifier);
+            const output = Array.isArray(result)
+                ? { stats: result[0], found: result[1] }
+                : result?.output ?? result;
+            const stats = output?.stats;
+            const found = Boolean(output?.found);
             return {
                 stats: found ? this.parseStats(stats) : {},
-                found: Boolean(found),
+                found,
             };
         }
         catch (error) {

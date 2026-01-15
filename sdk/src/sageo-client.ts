@@ -4,6 +4,7 @@ import type { A2AClient } from './types.js';
 import { SageoIdentitySDK } from './identity.js';
 import { SageoInteractionSDK } from './interaction.js';
 import { SageoA2AClientWrapper } from './a2a-wrapper.js';
+import { SageoRequestHandler } from './request-handler.js';
 import {
   loadManifest,
   DEFAULT_IDENTITY_LOGIC_ID,
@@ -11,6 +12,7 @@ import {
 } from './config.js';
 import type { AgentProfile, AgentSkill } from './types.js';
 import { normalizeIdentifier } from './utils.js';
+import type { A2ARequestHandler } from '@a2a-js/sdk/server';
 
 export class SageoClient {
   private moiRpcUrl: string;
@@ -135,6 +137,16 @@ export class SageoClient {
       remoteAgentCard,
       this.mySageoId!
     );
+  }
+
+  wrapRequestHandler(handler: A2ARequestHandler): SageoRequestHandler {
+    if (!this.initialized) {
+      throw new Error(
+        'SageoClient not initialized. Call initialize() first or use await getMyProfile()'
+      );
+    }
+
+    return new SageoRequestHandler(handler, this);
   }
 
 

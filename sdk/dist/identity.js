@@ -1,4 +1,5 @@
 import { createProvider, createWallet, loadContract, getIdentifier, } from './client.js';
+import { normalizeIdentifier } from './utils.js';
 import { AgentStatus, } from './types.js';
 import { ContractLoadError, SignerRequiredError, TransactionError, QueryError, } from './errors.js';
 export class SageoIdentitySDK {
@@ -15,7 +16,7 @@ export class SageoIdentitySDK {
         this.logicId = logicId;
     }
     static async init(config) {
-        const provider = await createProvider(config.rpcUrl);
+        const provider = await createProvider();
         let wallet;
         let writeDriver;
         if (config.privateKey) {
@@ -106,7 +107,11 @@ export class SageoIdentitySDK {
     async getAgentProfile(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentProfile(sageoId);
-            const [profileData, found] = result;
+            const output = Array.isArray(result)
+                ? { profile: result[0], found: result[1] }
+                : result?.output ?? result;
+            const profileData = output?.profile;
+            const found = Boolean(output?.found);
             if (!found) {
                 return { profile: null, found: false };
             }
@@ -133,7 +138,11 @@ export class SageoIdentitySDK {
     async getAgentCard(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentCard(sageoId);
-            const [cardData, found] = result;
+            const output = Array.isArray(result)
+                ? { card: result[0], found: result[1] }
+                : result?.output ?? result;
+            const cardData = output?.card;
+            const found = Boolean(output?.found);
             if (!found) {
                 return { card: null, found: false };
             }
@@ -151,8 +160,15 @@ export class SageoIdentitySDK {
     async getAgentSkills(sageoId) {
         try {
             const result = await this.readDriver.routines.GetAgentSkills(sageoId);
-            const skills = result.map((s) => this.parseSkill(s));
-            return { skills, found: skills.length > 0 };
+            const output = Array.isArray(result)
+                ? { skills: result[0], found: result[1] }
+                : result?.output ?? result;
+            const rawSkills = output?.skills ?? [];
+            const skills = Array.isArray(rawSkills)
+                ? rawSkills.map((s) => this.parseSkill(s))
+                : [];
+            const found = Boolean(output?.found ?? skills.length > 0);
+            return { skills, found };
         }
         catch (error) {
             const errorMsg = String(error);
@@ -175,11 +191,15 @@ export class SageoIdentitySDK {
             catch (getAllError) {
                 throw getAllError;
             }
-            const ids = idsResult.ids || idsResult || [];
+            const output = Array.isArray(idsResult)
+                ? { ids: idsResult[0] }
+                : idsResult?.output ?? idsResult;
+            const ids = output?.ids || [];
             for (const id of ids) {
                 const profileResult = await this.getAgentProfile(String(id));
                 if (profileResult.found &&
-                    profileResult.profile?.wallet_address === walletAddress) {
+                    normalizeIdentifier(profileResult.profile?.wallet_address || '') ===
+                        normalizeIdentifier(walletAddress)) {
                     return profileResult.profile;
                 }
             }
@@ -196,7 +216,11 @@ export class SageoIdentitySDK {
     async getAgentByUrl(url) {
         try {
             const result = await this.readDriver.routines.GetAgentByUrl(url);
-            const [profileData, found] = result;
+            const output = Array.isArray(result)
+                ? { profile: result[0], found: result[1] }
+                : result?.output ?? result;
+            const profileData = output?.profile;
+            const found = Boolean(output?.found);
             if (!found) {
                 return null;
             }
@@ -228,7 +252,7 @@ export class SageoIdentitySDK {
         return {
             sageo_id: String(raw.sageo_id || ''),
             owner: String(raw.owner || ''),
-            wallet_address: String(raw.wallet_address || ''),
+            wallet_address: normalizeIdentifier(String(raw.wallet_address || '')),
             status: raw.status || AgentStatus.ACTIVE,
             created_at: BigInt(raw.created_at || 0),
             updated_at: BigInt(raw.updated_at || 0),
@@ -239,7 +263,7 @@ export class SageoIdentitySDK {
         return {
             sageo_id: String(raw.sageo_id || ''),
             owner: String(raw.owner || ''),
-            wallet_address: String(raw.wallet_address || ''),
+            wallet_address: normalizeIdentifier(String(raw.wallet_address || '')),
             status: raw.status || AgentStatus.ACTIVE,
             created_at: BigInt(raw.created_at || 0),
             updated_at: BigInt(raw.updated_at || 0),

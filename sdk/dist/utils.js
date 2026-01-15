@@ -30,6 +30,19 @@ export async function getIdentifier(wallet) {
     }
     return identifier.toString ? identifier.toString() : String(identifier);
 }
+export function normalizeIdentifier(value) {
+    const trimmed = value.trim();
+    if (!trimmed) {
+        return '';
+    }
+    if (trimmed.startsWith('0x')) {
+        return trimmed;
+    }
+    if (/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+        return `0x${trimmed}`;
+    }
+    return trimmed;
+}
 export function extractIntent(message) {
     if (!message.parts || message.parts.length === 0) {
         return 'agent_interaction';

@@ -21,13 +21,11 @@ export class SageoA2AClientWrapper {
         const intent = extractIntent(message);
         // Hash the request payload
         const requestHash = hashPayload(request);
-        let calleeAddress;
         let calleeSageoId = '';
         try {
             // Try to find agent by URL
             const profileByUrl = await this.sageoClient.identity.getAgentByUrl(this.remoteAgentCard.url);
             if (profileByUrl) {
-                calleeAddress = profileByUrl.wallet_address;
                 calleeSageoId = profileByUrl.sageo_id;
             }
             else {
@@ -56,11 +54,11 @@ export class SageoA2AClientWrapper {
         // Inject trace metadata into request (before logging so it's included in hash)
         this.injectTraceMetadata(request, traceMetadata);
         // Log request to InteractionLogic BEFORE sending
-        let interactionId;
+        let interactionId = null;
         try {
             interactionId = await this.sageoClient.interaction.logRequest({
                 interactionId: '',
-                counterpartySageoId: calleeAddress,
+                counterpartySageoId: calleeSageoId,
                 isSender: true,
                 requestHash,
                 intent,
@@ -80,8 +78,42 @@ export class SageoA2AClientWrapper {
             console.warn('Failed to log interaction to Sageo:', error);
         }
         // Send the A2A request
-        const response = await this.a2aClient.sendMessage(request);
-        return response;
+        try {
+            const response = await this.a2aClient.sendMessage(request);
+            if (interactionId) {
+                const responseHash = hashPayload(response);
+                await this.sageoClient.interaction.logResponse({
+                    interactionId,
+                    counterpartySageoId: calleeSageoId,
+                    isSender: false,
+                    responseHash,
+                    statusCode: 200n,
+                    timestamp: BigInt(Math.floor(Date.now() / 1000)),
+                });
+            }
+            return response;
+        }
+        catch (error) {
+            if (interactionId) {
+                const responseHash = hashPayload({
+                    error: error instanceof Error ? error.message : String(error),
+                });
+                try {
+                    await this.sageoClient.interaction.logResponse({
+                        interactionId,
+                        counterpartySageoId: calleeSageoId,
+                        isSender: false,
+                        responseHash,
+                        statusCode: 500n,
+                        timestamp: BigInt(Math.floor(Date.now() / 1000)),
+                    });
+                }
+                catch (logError) {
+                    console.warn('Failed to log response to Sageo:', logError);
+                }
+            }
+            throw error;
+        }
     }
     async getTask(taskId) {
         return this.a2aClient.getTask(taskId);
