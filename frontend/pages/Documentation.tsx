@@ -1,6 +1,21 @@
 import React from 'react';
 
 const Documentation = () => {
+  const handleNavClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
+    e.preventDefault();
+    const element = document.getElementById(targetId);
+    if (element) {
+      const offset = 100; // Account for sticky header
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
+
   return (
     <div className="flex-1 w-full max-w-[1440px] mx-auto flex flex-col lg:flex-row">
       {/* Sidebar Navigation */}
@@ -17,19 +32,19 @@ const Documentation = () => {
 
         <nav className="flex flex-col gap-1 mb-8">
           <p className="text-[10px] font-bold text-[#5f747a] uppercase tracking-wider mb-3 px-3">Table of Contents</p>
-          <a href="#intro" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#intro" onClick={(e) => handleNavClick(e, 'intro')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">article</span>
             <span className="text-sm font-medium">Introduction</span>
           </a>
-          <a href="#role-of-moi" className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border-l-2 border-primary">
+          <a href="#role-of-moi" onClick={(e) => handleNavClick(e, 'role-of-moi')} className="flex items-center gap-3 px-3 py-2 rounded-lg bg-primary/10 text-primary border-l-2 border-primary">
             <span className="material-symbols-outlined text-[18px]">hub</span>
             <span className="text-sm font-medium">The Role of MOI</span>
           </a>
-          <a href="#context-portability" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#context-portability" onClick={(e) => handleNavClick(e, 'context-portability')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">backpack</span>
             <span className="text-sm font-medium">Context Portability</span>
           </a>
-          <a href="#empowering-agents" className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
+          <a href="#empowering-agents" onClick={(e) => handleNavClick(e, 'empowering-agents')} className="flex items-center gap-3 px-3 py-2 rounded-lg text-text-secondary hover:bg-surface-dark hover:text-white transition-colors">
             <span className="material-symbols-outlined text-[18px]">smart_toy</span>
             <span className="text-sm font-medium">Empowering Agents</span>
           </a>
