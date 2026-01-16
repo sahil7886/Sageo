@@ -24,7 +24,6 @@
     "node_modules",
     "dist",
     "scripts",
-    "src/lib/faucet.ts",
-    "index.ts"
+    "src/lib/faucet.ts"
   ]
 }

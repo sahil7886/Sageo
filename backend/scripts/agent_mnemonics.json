@@ -1,0 +1,47 @@
+{
+  "created_at": "2026-01-15T21:41:22.715Z",
+  "agents": [
+    {
+      "name": "WeatherBot",
+      "sageo_id": "agent_1_old",
+      "mnemonic": "humble erase crew pumpkin predict damage gap million voice skull divert gather",
+      "wallet_address": "0x00000000aa62091a4cb54002414c2d4da0d64e96eb5edf5a9dfda6d900000000",
+      "created_at": "2026-01-15T21:41:03.622Z"
+    },
+    {
+      "name": "StockTrader",
+      "sageo_id": "agent_2_old",
+      "mnemonic": "below loud loud march poet bless burst program visual file boy glimpse",
+      "wallet_address": "0x00000000f5f6afc2224ededf7aa7551fc05c44b1abaa9e2470f2f01e00000000",
+      "created_at": "2026-01-15T21:41:22.715Z"
+    },
+    {
+      "name": "WeatherBot",
+      "sageo_id": "agent_5",
+      "mnemonic": "peace undo purpose apple run category junior stumble excuse guilt combine much",
+      "wallet_address": "0x000000001d4da947175ce7b214a15c96309e44b0bc9f32e4ab27031700000000",
+      "created_at": "2026-01-16T03:30:43.125Z"
+    },
+    {
+      "name": "StockTrader",
+      "sageo_id": "agent_6",
+      "mnemonic": "vivid deny enroll indoor special dentist coast glue jeans slide crisp before",
+      "wallet_address": "0x000000002562f3202a6cc711cb3c86b6fdda560b7cef8dffccfe7e4a00000000",
+      "created_at": "2026-01-16T03:31:01.573Z"
+    },
+    {
+      "name": "WeatherBot",
+      "sageo_id": "agent_1",
+      "mnemonic": "pear certain humor matrix turkey wreck awesome dose artwork film camera report",
+      "wallet_address": "0x000000005155995f246f91edd70f988da7be71e4fe136ed0857a685a00000000",
+      "created_at": "2026-01-16T05:21:23.464Z"
+    },
+    {
+      "name": "StockTrader",
+      "sageo_id": "agent_2",
+      "mnemonic": "oval choose energy share reward crunch hero sense volcano able deer upon",
+      "wallet_address": "0x00000000e1b2d80f72909fdc859790b987aecb90af84b3724be42c5200000000",
+      "created_at": "2026-01-16T05:21:41.916Z"
+    }
+  ]
+}
