@@ -121,7 +121,8 @@ function extractInteractionId(result: any): string | null {
 }
 
 async function createMockInteractions(
-  agentWallet: any,
+  callerWallet: any,
+  calleeWallet: any,
   callerSageoId: string,
   calleeSageoId: string
 ): Promise<boolean> {
@@ -144,27 +145,49 @@ async function createMockInteractions(
   const interactionManifestYamlSafe = interactionManifestYaml.replace(/value:\s+(0x[0-9a-fA-F]+)/g, 'value: "$1"');
   const interactionManifest = yaml.load(interactionManifestYamlSafe) as any;
 
-  // Create logic driver with agent's wallet
+  // Create logic drivers with each agent's wallet
   const { LogicDriver } = await import('js-moi-sdk');
-  const logicDriver = new LogicDriver(INTERACTION_LOGIC_ID, interactionManifest, agentWallet);
+  const callerLogicDriver = new LogicDriver(INTERACTION_LOGIC_ID, interactionManifest, callerWallet);
+  const calleeLogicDriver = new LogicDriver(INTERACTION_LOGIC_ID, interactionManifest, calleeWallet);
 
-  // 1. Enlist agent
-  console.log(`\nEnlisting '${callerSageoId}'...`);
-  try {
-    const enlistIx = await logicDriver.routines.Enlist(callerSageoId);
-    await enlistIx.wait();
-    console.log('✅ Enlisted!');
-  } catch (error) {
-    console.error(`❌ Failed to enlist: ${(error as Error).message}`);
+  const tryEnlist = async (
+    driver: any,
+    sageoId: string,
+    label: string
+  ): Promise<boolean> => {
+    console.log(`\nEnlisting '${sageoId}' (${label})...`);
+    try {
+      const enlistIx = await driver.routines.Enlist(sageoId);
+      await enlistIx.wait();
+      console.log('✅ Enlisted!');
+      return true;
+    } catch (error) {
+      const message = (error as Error).message || String(error);
+      if (/already|exists|enlisted/i.test(message)) {
+        console.log('ℹ️ Already enlisted.');
+        return true;
+      }
+      console.error(`❌ Failed to enlist: ${message}`);
+      return false;
+    }
+  };
+
+  // 1. Enlist both agents for interaction logic (idempotent)
+  const callerEnlisted = await tryEnlist(callerLogicDriver, callerSageoId, 'caller');
+  if (!callerEnlisted) {
+    return false;
+  }
+  const calleeEnlisted = await tryEnlist(calleeLogicDriver, calleeSageoId, 'callee');
+  if (!calleeEnlisted) {
     return false;
   }
 
-  // 2. Log Request (Interaction 1)
-  console.log('\nLogging Request 1...');
+  // 2. Log Request (Interaction 1) - caller
+  console.log('\nLogging Request 1 (caller)...');
   const ts1 = Math.floor(Date.now() / 1000);
   let interactionId1: string;
   try {
-    const req1Ix = await logicDriver.routines.LogRequest(
+    const req1Ix = await callerLogicDriver.routines.LogRequest(
       '',  // empty string = generate new interaction_id
       calleeSageoId,  // counterparty (callee)
       true,  // is_sender = true
@@ -195,10 +218,45 @@ async function createMockInteractions(
     return false;
   }
 
-  // 3. Log Response 1
-  console.log('Logging Response 1...');
+  // 3. Log Request 1 (callee)
+  console.log('Logging Request 1 (callee)...');
   try {
-    const resp1Ix = await logicDriver.routines.LogResponse(
+    const calleeReq1Ix = await calleeLogicDriver.routines.LogRequest(
+      interactionId1,
+      callerSageoId,  // counterparty (caller)
+      false,  // is_sender = false (callee is receiving)
+      'req_hash_1',
+      'greeting',
+      ts1,
+      'ctx_1', 'task_1', 'msg_1', 'user_1', 'sess_1'
+    );
+    await calleeReq1Ix.wait();
+  } catch (error) {
+    console.error(`❌ Failed to log request 1 (callee): ${(error as Error).message}`);
+    return false;
+  }
+
+  // 4. Log Response 1 (callee)
+  console.log('Logging Response 1 (callee)...');
+  try {
+    const resp1Ix = await calleeLogicDriver.routines.LogResponse(
+      interactionId1,
+      callerSageoId,  // counterparty
+      true,  // is_sender = true (callee is sending)
+      'resp_hash_1',
+      200,
+      ts1 + 5
+    );
+    await resp1Ix.wait();
+  } catch (error) {
+    console.error(`❌ Failed to log response 1 (callee): ${(error as Error).message}`);
+    return false;
+  }
+
+  // 5. Log Response 1 (caller)
+  console.log('Logging Response 1 (caller)...');
+  try {
+    const callerResp1Ix = await callerLogicDriver.routines.LogResponse(
       interactionId1,
       calleeSageoId,  // counterparty
       false,  // is_sender = false (caller is receiving)
@@ -206,18 +264,18 @@ async function createMockInteractions(
       200,
       ts1 + 5
     );
-    await resp1Ix.wait();
+    await callerResp1Ix.wait();
     console.log('✅ Interaction 1 Complete!');
   } catch (error) {
-    console.error(`❌ Failed to log response 1: ${(error as Error).message}`);
+    console.error(`❌ Failed to log response 1 (caller): ${(error as Error).message}`);
     return false;
   }
 
-  // 4. Log Request 2 (Failure case)
-  console.log('\nLogging Request 2 (Failure case)...');
+  // 6. Log Request 2 (Failure case) - caller
+  console.log('\nLogging Request 2 (Failure case, caller)...');
   let interactionId2: string;
   try {
-    const req2Ix = await logicDriver.routines.LogRequest(
+    const req2Ix = await callerLogicDriver.routines.LogRequest(
       '',  // empty string = generate new interaction_id
       calleeSageoId,  // counterparty
       true,  // is_sender = true
@@ -246,10 +304,45 @@ async function createMockInteractions(
     return false;
   }
 
-  // 5. Log Response 2
-  console.log('Logging Response 2...');
+  // 7. Log Request 2 (callee)
+  console.log('Logging Request 2 (callee)...');
   try {
-    const resp2Ix = await logicDriver.routines.LogResponse(
+    const calleeReq2Ix = await calleeLogicDriver.routines.LogRequest(
+      interactionId2,
+      callerSageoId,
+      false,  // is_sender = false (callee is receiving)
+      'req_hash_2',
+      'payment',
+      ts1 + 10,
+      'ctx_1', 'task_2', 'msg_2', 'user_1', 'sess_1'
+    );
+    await calleeReq2Ix.wait();
+  } catch (error) {
+    console.error(`❌ Failed to log request 2 (callee): ${(error as Error).message}`);
+    return false;
+  }
+
+  // 8. Log Response 2 (callee)
+  console.log('Logging Response 2 (callee)...');
+  try {
+    const resp2Ix = await calleeLogicDriver.routines.LogResponse(
+      interactionId2,
+      callerSageoId,  // counterparty
+      true,  // is_sender = true (callee is sending)
+      'resp_hash_2',
+      500,
+      ts1 + 15
+    );
+    await resp2Ix.wait();
+  } catch (error) {
+    console.error(`❌ Failed to log response 2 (callee): ${(error as Error).message}`);
+    return false;
+  }
+
+  // 9. Log Response 2 (caller)
+  console.log('Logging Response 2 (caller)...');
+  try {
+    const callerResp2Ix = await callerLogicDriver.routines.LogResponse(
       interactionId2,
       calleeSageoId,  // counterparty
       false,  // is_sender = false (caller is receiving)
@@ -257,10 +350,10 @@ async function createMockInteractions(
       500,
       ts1 + 15
     );
-    await resp2Ix.wait();
+    await callerResp2Ix.wait();
     console.log('✅ Interaction 2 Complete!');
   } catch (error) {
-    console.error(`❌ Failed to log response 2: ${(error as Error).message}`);
+    console.error(`❌ Failed to log response 2 (caller): ${(error as Error).message}`);
     return false;
   }
 
@@ -313,15 +406,19 @@ async function main(): Promise<boolean> {
   console.log(`   Caller: ${firstAgent.name} (${firstAgent.sageo_id})`);
   console.log(`   Callee: ${secondAgent.name} (${secondAgent.sageo_id})\n`);
 
-  // Create wallet for first agent
-  const agentWallet = await Wallet.fromMnemonic(firstAgent.mnemonic, MOI_DERIVATION_PATH);
-  agentWallet.connect(provider);
+  // Create wallets for both agents
+  const callerWallet = await Wallet.fromMnemonic(firstAgent.mnemonic, MOI_DERIVATION_PATH);
+  callerWallet.connect(provider);
+  const calleeWallet = await Wallet.fromMnemonic(secondAgent.mnemonic, MOI_DERIVATION_PATH);
+  calleeWallet.connect(provider);
 
-  console.log(`✅ Using wallet: ${agentWallet.getIdentifier()}\n`);
+  console.log(`✅ Using caller wallet: ${callerWallet.getIdentifier()}`);
+  console.log(`✅ Using callee wallet: ${calleeWallet.getIdentifier()}\n`);
 
   // Create mock interactions using the agent's wallet
   const interactionSuccess = await createMockInteractions(
-    agentWallet,
+    callerWallet,
+    calleeWallet,
     firstAgent.sageo_id,
     secondAgent.sageo_id
   );

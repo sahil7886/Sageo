@@ -78,13 +78,16 @@ async function main() {
     'user_001',
     'session_001'
   );
-  const aliceReqResult = await aliceLogReq.send({ fuelPrice: 1, fuelLimit: 2000 });
-  const aliceReqReceipt = await aliceReqResult.wait();
-  
-  // Extract interaction_id
-  const interactionId = aliceReqReceipt.outputs?.[0] ?? 
-                       (aliceReqReceipt as any).result?.result_interaction_id ??
-                       (aliceReqReceipt as any).output?.result_interaction_id;
+  const aliceReqReceipt = await aliceLogReq.wait();
+  let interactionId: string | undefined;
+  try {
+    const decoded = await aliceLogReq.result();
+    interactionId = decoded?.output?.result_interaction_id ?? decoded?.result_interaction_id;
+  } catch (error) {
+    interactionId = aliceReqReceipt.outputs?.[0] ??
+      (aliceReqReceipt as any).result?.result_interaction_id ??
+      (aliceReqReceipt as any).output?.result_interaction_id;
+  }
   
   if (!interactionId) {
     console.error('❌ Failed to get interaction_id from Step 1');
@@ -109,8 +112,7 @@ async function main() {
     'user_001',
     'session_001'
   );
-  const bobReqResult = await bobLogReq.send({ fuelPrice: 1, fuelLimit: 2000 });
-  await bobReqResult.wait();
+  await bobLogReq.wait();
   console.log('✅ Bob logged request\n');
 
   // Step 3: Bob (callee) logs response
@@ -124,8 +126,7 @@ async function main() {
     200n,
     timestamp2
   );
-  const bobRespResult = await bobLogResp.send({ fuelPrice: 1, fuelLimit: 2000 });
-  await bobRespResult.wait();
+  await bobLogResp.wait();
   console.log('✅ Bob logged response\n');
 
   // Step 4: Alice (caller) logs response
@@ -138,8 +139,7 @@ async function main() {
     200n,
     timestamp2
   );
-  const aliceRespResult = await aliceLogResp.send({ fuelPrice: 1, fuelLimit: 2000 });
-  await aliceRespResult.wait();
+  await aliceLogResp.wait();
   console.log('✅ Alice logged response\n');
 
   // Verify: Check both agents' interactions
@@ -147,27 +147,36 @@ async function main() {
   console.log('Verification: Querying interactions');
   console.log('========================================\n');
 
+  const normalizeListResult = (result: any) => {
+    const raw = (result as any)?.output ?? (result as any)?.outputs ?? result;
+    if (Array.isArray(raw)) {
+      return { records: raw[0] ?? [], total: raw[1] ?? 0 };
+    }
+    if ((raw as any)?.outputs && Array.isArray((raw as any).outputs)) {
+      return { records: (raw as any).outputs[0] ?? [], total: (raw as any).outputs[1] ?? 0 };
+    }
+    return { records: (raw as any)?.records ?? [], total: (raw as any)?.total ?? 0 };
+  };
+
   console.log('Alice\'s interactions:');
+  const aliceIdentifier = aliceWallet.getIdentifier().toString();
   const aliceInteractions = await aliceDriver.routines.ListInteractionsByAgent(
-    aliceWallet.getIdentifier(),
+    aliceIdentifier,
     10n,
     0n
   );
-  const aliceOutput = Array.isArray(aliceInteractions)
-    ? { records: aliceInteractions[0], total: aliceInteractions[1] }
-    : (aliceInteractions as any)?.output ?? aliceInteractions;
+  const aliceOutput = normalizeListResult(aliceInteractions);
   console.log(`Total: ${aliceOutput.total}`);
   console.log('Records:', JSON.stringify(aliceOutput.records, null, 2));
 
   console.log('\nBob\'s interactions:');
+  const bobIdentifier = bobWallet.getIdentifier().toString();
   const bobInteractions = await bobDriver.routines.ListInteractionsByAgent(
-    bobWallet.getIdentifier(),
+    bobIdentifier,
     10n,
     0n
   );
-  const bobOutput = Array.isArray(bobInteractions)
-    ? { records: bobInteractions[0], total: bobInteractions[1] }
-    : (bobInteractions as any)?.output ?? bobInteractions;
+  const bobOutput = normalizeListResult(bobInteractions);
   console.log(`Total: ${bobOutput.total}`);
   console.log('Records:', JSON.stringify(bobOutput.records, null, 2));
 
