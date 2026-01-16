@@ -1,11 +1,16 @@
 // API client for Sageo frontend
 // Connects to the Sageo Explorer API
 
+// API URL configuration:
+// Priority: VITE_API_URL env var > relative URLs (works with Vite proxy in dev and Vercel rewrites in prod)
 const VITE_API_URL =
     typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_API_URL : undefined;
+const isDevelopment = import.meta.env?.MODE === 'development';
+
+// In browser: Use VITE_API_URL if set, otherwise relative URLs (works with Vite proxy in dev and Vercel rewrites in prod)
+// In Node/SSR: Use API_URL env var or localhost fallback
 const API_BASE_URL = VITE_API_URL
-    || (typeof process !== 'undefined' && process.env?.API_URL)
-    || 'http://localhost:3001';
+    || (typeof window !== 'undefined' ? '' : (typeof process !== 'undefined' && process.env?.API_URL || 'http://localhost:3001'));
 
 // Types matching API responses
 export interface AgentSkill {

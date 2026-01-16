@@ -8,6 +8,25 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: [
+          'inez-cronish-hastately.ngrok-free.dev',
+          '.ngrok-free.dev',
+          '.ngrok.io'
+        ],
+        proxy: {
+          '/agents': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
+          '/interactions': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
+          '/health': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
+        },
       },
       plugins: [react()],
       define: {

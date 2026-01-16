@@ -8,7 +8,15 @@ const app = express();
 
 // CORS middleware - allow frontend to access API
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000'],
+  origin: [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'https://inez-cronish-hastately.ngrok-free.dev',
+    /^https:\/\/.*\.ngrok-free\.dev$/,
+    /^https:\/\/.*\.ngrok\.io$/,
+    /^https:\/\/.*\.vercel\.app$/,
+    /^https:\/\/.*\.vercel\.dev$/,
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
