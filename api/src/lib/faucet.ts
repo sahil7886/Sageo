@@ -65,7 +65,7 @@ export async function fundWallet(address: string): Promise<void> {
       }
     } catch (error) {
       lastError = error instanceof Error ? error : new Error(String(error));
-      
+
       if (axios.isAxiosError(error)) {
         if (error.response?.status === 429) {
           console.warn(`⚠️  Rate limited by faucet, waiting before retry...`);
@@ -106,11 +106,11 @@ export async function transferTokens(
 ): Promise<void> {
   try {
     console.log(`💸 Transferring ${amount} tokens to ${toAddress}...`);
-    
+
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:105',message:'Transfer start',data:{toAddress,amount,walletAddress:fromWallet.getIdentifier()},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H1'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:105', message: 'Transfer start', data: { toAddress, amount, walletAddress: fromWallet.getIdentifier() }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H1' }) }).catch(() => { });
     // #endregion
-    
+
     // CRITICAL: Check wallet state BEFORE attempting transfer
     const provider = fromWallet.provider || fromWallet._provider;
     let walletState;
@@ -118,28 +118,28 @@ export async function transferTokens(
       const nonce = await fromWallet.getNonce();
       const pendingCount = await provider.getPendingInteractionCount(fromWallet.getIdentifier());
       const interactionCount = await provider.getInteractionCount(fromWallet.getIdentifier());
-      
+
       walletState = {
         nonce,
         pendingCount: typeof pendingCount === 'bigint' ? Number(pendingCount) : pendingCount,
         interactionCount: typeof interactionCount === 'bigint' ? Number(interactionCount) : interactionCount
       };
-      
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:120',message:'Wallet state before transfer',data:walletState,timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H8'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:120', message: 'Wallet state before transfer', data: walletState, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H8' }) }).catch(() => { });
       // #endregion
-      
+
       console.log(`📊 Wallet nonce: ${nonce}, pending: ${walletState.pendingCount}, confirmed: ${walletState.interactionCount}`);
     } catch (e) {
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:129',message:'Failed to get wallet state',data:{error:String(e)},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H8'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:129', message: 'Failed to get wallet state', data: { error: String(e) }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H8' }) }).catch(() => { });
       // #endregion
     }
-    
+
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:144',message:'Sending with SDK auto-nonce',data:{toAddress,type:2},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H15'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:144', message: 'Sending with SDK auto-nonce', data: { toAddress, type: 2 }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H15' }) }).catch(() => { });
     // #endregion
-    
+
     // Create ASSET_TRANSFER - NO NONCE, let SDK auto-manage completely
     const tx = await fromWallet.sendInteraction({
       fuel_price: 1,
@@ -154,31 +154,32 @@ export async function transferTokens(
         }
       }]
     });
-    
+
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:126',message:'Transaction sent',data:{txHash:tx.hash},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H1'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:126', message: 'Transaction sent', data: { txHash: tx.hash }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H1' }) }).catch(() => { });
     // #endregion
-    
+
     // Wait for transaction to be confirmed on-chain
     const receipt = await tx.wait();
     // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:133',message:'Transaction confirmed',data:{txHash:tx.hash,status:receipt?.status},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H7'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:133', message: 'Transaction confirmed', data: { txHash: tx.hash, status: receipt?.status }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H7' }) }).catch(() => { });
     // #endregion
-    
+
     console.log(`✅ Transfer complete (status: ${receipt?.status})`);
   } catch (error) {
     // #region agent log
+    const err = error as any;
     const errorDetails = {
-      message: error?.message || String(error),
-      code: error?.code,
-      reason: error?.reason,
-      params: error?.params,
-      errorType: error?.constructor?.name,
-      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error))
+      message: err?.message || String(error),
+      code: err?.code,
+      reason: err?.reason,
+      params: err?.params,
+      errorType: err?.constructor?.name,
+      fullError: JSON.stringify(error, Object.getOwnPropertyNames(error as object))
     };
-    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:163',message:'Transfer failed with details',data:errorDetails,timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H4'})}).catch(()=>{});
+    fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:163', message: 'Transfer failed with details', data: errorDetails, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H4' }) }).catch(() => { });
     // #endregion
-    
+
     const errorMessage = error instanceof Error ? error.message : String(error);
     throw new Error(`Failed to transfer tokens: ${errorMessage}`);
   }
@@ -201,47 +202,47 @@ export async function distributeTokens(
   const results: { address: string; success: boolean; error?: string }[] = [];
   const totalNeeded = targetAddresses.length * amountPerWallet;
   const distributorAddress = distributorWallet.getIdentifier();
-  
+
   // Check if distributor has sufficient balance
   console.log('\n💰 Checking distributor wallet balance...');
   try {
     const provider = distributorWallet.provider || distributorWallet._provider;
-    
+
     if (!provider) {
       throw new Error('Wallet is not connected to a provider. Cannot check balance.');
     }
-    
+
     const nativeAssetId = '0x108000004cd973c4eb83cdb8870c0de209736270491b7acc99873da100000000';
     const balanceResult = await provider.getBalance(distributorAddress, nativeAssetId);
     const currentBalance = typeof balanceResult === 'bigint' ? Number(balanceResult) : parseInt(balanceResult?.toString() || '0');
-    
+
     console.log(`📊 Current balance: ${currentBalance} tokens`);
     console.log(`📊 Required: ${totalNeeded} tokens`);
-    
+
     if (currentBalance < totalNeeded) {
       throw new Error(
         `Insufficient balance: ${currentBalance} tokens available, need ${totalNeeded} tokens.\n` +
         `Please fund the deployer wallet (${distributorAddress}) manually or use --faucet flag.`
       );
     }
-    
+
     console.log(`✅ Sufficient balance available\n`);
   } catch (error) {
     throw error;
   }
-  
+
   // Distribute to each target wallet
   console.log(`💸 Distributing ${amountPerWallet} tokens to ${targetAddresses.length} wallet(s)...\n`);
-  
+
   for (const address of targetAddresses) {
     try {
       await transferTokens(distributorWallet, address, amountPerWallet);
       results.push({ address, success: true });
-      
+
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'faucet.ts:227',message:'Transfer successful, adding longer delay',data:{address},timestamp:Date.now(),sessionId:'debug-session',runId:'transfer-test',hypothesisId:'H7'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/a93a6bdf-b6d1-48e8-a64c-8aa46cc7965d', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'faucet.ts:227', message: 'Transfer successful, adding longer delay', data: { address }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'transfer-test', hypothesisId: 'H7' }) }).catch(() => { });
       // #endregion
-      
+
       // Add longer delay between transactions to ensure blockchain state updates
       // Transaction is confirmed, but we need extra time for state propagation
       await new Promise(resolve => setTimeout(resolve, 3000));
@@ -274,7 +275,7 @@ export async function fundWalletsViaDistributor(
   const results: { address: string; success: boolean; error?: string }[] = [];
   const totalNeeded = targetAddresses.length * amountPerWallet;
   const distributorAddress = distributorWallet.getIdentifier();
-  
+
   // Step 1: Attempt to fund distributor wallet via faucet
   console.log('\n💰 Step 1: Funding distributor wallet via faucet...');
   try {
@@ -283,26 +284,26 @@ export async function fundWalletsViaDistributor(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.warn(`⚠️  Faucet failed: ${errorMessage}`);
-    
+
     // Step 2: Check if existing balance is sufficient
     console.log('\n📊 Checking if existing balance is sufficient...');
     try {
       // Get the provider from the wallet
       const provider = distributorWallet.provider || distributorWallet._provider;
-      
+
       if (!provider) {
         throw new Error('Wallet is not connected to a provider. Cannot check balance.');
       }
-      
-    // Get balance using provider.getBalance(address, assetId)
-    // Native MOI token asset ID
-    const nativeAssetId = '0x108000004cd973c4eb83cdb8870c0de209736270491b7acc99873da100000000';
+
+      // Get balance using provider.getBalance(address, assetId)
+      // Native MOI token asset ID
+      const nativeAssetId = '0x108000004cd973c4eb83cdb8870c0de209736270491b7acc99873da100000000';
       const balanceResult = await provider.getBalance(distributorAddress, nativeAssetId);
       const currentBalance = typeof balanceResult === 'bigint' ? Number(balanceResult) : parseInt(balanceResult?.toString() || '0');
-      
+
       console.log(`   Current balance: ${currentBalance} tokens`);
       console.log(`   Required: ${totalNeeded} tokens`);
-      
+
       if (currentBalance >= totalNeeded) {
         console.log(`✅ Existing balance is sufficient, continuing...\n`);
       } else {
@@ -321,7 +322,7 @@ export async function fundWalletsViaDistributor(
 
   // Step 3: Distribute to each target wallet
   console.log(`💸 Step 2: Distributing ${amountPerWallet} tokens to ${targetAddresses.length} wallet(s)...\n`);
-  
+
   for (const address of targetAddresses) {
     try {
       await transferTokens(distributorWallet, address, amountPerWallet);
