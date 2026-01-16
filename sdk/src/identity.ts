@@ -100,8 +100,7 @@ export class SageoIdentitySDK {
 
     try {
       const ix = await driver.routines.Enlist();
-      const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
-      await result.wait();
+      await ix.wait();
     } catch (error) {
       throw new TransactionError('Failed to enlist', undefined, error);
     }
@@ -157,10 +156,17 @@ export class SageoIdentitySDK {
         throw createIxError;
       }
 
-      const result = await ix.send({ fuelPrice: 1, fuelLimit: 5000 });
-      const receipt = await result.wait();
+      const receipt = await ix.wait();
+      let decoded: any = null;
+      try {
+        decoded = await ix.result();
+      } catch (decodeError) {
+        decoded = null;
+      }
 
       const sageoId =
+        decoded?.output?.sageo_id ??
+        decoded?.sageo_id ??
         receipt.outputs?.[0] ??
         (receipt as any).sageo_id ??
         (receipt as any).result?.sageo_id ??
@@ -357,8 +363,7 @@ export class SageoIdentitySDK {
         outputModes
       );
 
-      const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-      await result.wait();
+      await ix.wait();
     } catch (error) {
       throw new TransactionError(
         `Failed to add skill to agent: ${sageoId}`,

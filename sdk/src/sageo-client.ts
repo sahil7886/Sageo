@@ -66,17 +66,6 @@ export class SageoClient {
       privateKey: this.agentKey,
     });
 
-    try {
-      await this.identitySDK.enlist();
-    } catch (error) {
-      const errorMsg = String(error);
-      if (errorMsg.includes('account not found')) {
-
-      } else if (!errorMsg.includes('already enlisted')) {
-        console.warn('Failed to enlist in IdentityLogic:', errorMsg);
-      }
-    }
-
     const myProfile = await this.identitySDK.getMyProfile();
     if (!myProfile) {
       throw new Error(
@@ -84,20 +73,6 @@ export class SageoClient {
       );
     }
     this.mySageoId = myProfile.sageo_id;
-
-    // Enlist in InteractionLogic
-    if (this.mySageoId) {
-      try {
-        await this.interactionSDK.enlist(this.mySageoId);
-      } catch (error) {
-
-        // Ignore if already enlisted
-        const errorMsg = String(error);
-        if (!errorMsg.includes('already enlisted')) {
-          console.warn('Failed to enlist in InteractionLogic:', errorMsg);
-        }
-      }
-    }
 
     this.initialized = true;
   }
@@ -121,7 +96,8 @@ export class SageoClient {
 
   wrapA2AClient(
     a2aClient: A2AClient,
-    remoteAgentCard: AgentCard
+    remoteAgentCard: AgentCard,
+    remoteSageoId?: string
   ): SageoA2AClientWrapper {
     if (!this.initialized) {
       throw new Error(
@@ -133,7 +109,8 @@ export class SageoClient {
       a2aClient,
       this,
       remoteAgentCard,
-      this.mySageoId!
+      this.mySageoId!,
+      remoteSageoId
     );
   }
 

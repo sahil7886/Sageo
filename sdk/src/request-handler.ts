@@ -14,6 +14,7 @@ import type {
   DeleteTaskPushNotificationConfigParams,
 } from '@a2a-js/sdk';
 import type { A2ARequestHandler, ServerCallContext } from '@a2a-js/sdk/server';
+import { randomUUID } from 'crypto';
 import type { SageoClient } from './sageo-client.js';
 import { extractIntent, extractSageoMetadata, hashPayload, SAGEO_EXTENSION_URI } from './utils.js';
 import type { SageoTraceMetadata } from './types.js';
@@ -23,10 +24,18 @@ type StreamEvent = Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEv
 export class SageoRequestHandler implements A2ARequestHandler {
   private underlying: A2ARequestHandler;
   private sageoClient: SageoClient;
+  private logTimeoutMs: number;
 
   constructor(underlying: A2ARequestHandler, sageoClient: SageoClient) {
     this.underlying = underlying;
     this.sageoClient = sageoClient;
+    const envTimeout =
+      typeof process !== 'undefined'
+        ? Number(process.env.SAGEO_LOG_TIMEOUT_MS || '')
+        : NaN;
+    this.logTimeoutMs = Number.isFinite(envTimeout) && envTimeout > 0
+      ? envTimeout
+      : 30000;
   }
 
   async getAgentCard(): Promise<AgentCard> {
@@ -41,25 +50,37 @@ export class SageoRequestHandler implements A2ARequestHandler {
     params: MessageSendParams,
     context?: ServerCallContext
   ): Promise<Message | Task> {
-    const trace = extractSageoMetadata(params.message);
-    if (trace) {
-      await this.logIncomingRequest(trace, params);
+    let trace = extractSageoMetadata(params.message);
+    if (!trace) {
+      trace = this.buildFallbackTrace(params, context);
+      this.injectTraceMetadata(params.message, trace);
+    }
+
+    const loggedInteractionId = await this.runWithTimeout(
+      this.logIncomingRequest(trace, params),
+      'incoming request'
+    );
+    if (!trace.interaction_id && loggedInteractionId) {
+      trace.interaction_id = loggedInteractionId;
+      this.injectTraceMetadata(params.message, trace);
     }
 
     try {
       const response = await this.underlying.sendMessage(params, context);
-      if (trace) {
-        await this.logResponse(trace, response, 200n);
-      }
+      await this.runWithTimeout(
+        this.logResponse(trace, response, 200n),
+        'response'
+      );
       return response;
     } catch (error) {
-      if (trace) {
-        await this.logResponse(
+      await this.runWithTimeout(
+        this.logResponse(
           trace,
           { error: error instanceof Error ? error.message : String(error) },
           500n
-        );
-      }
+        ),
+        'response (error)'
+      );
       throw error;
     }
   }
@@ -68,9 +89,19 @@ export class SageoRequestHandler implements A2ARequestHandler {
     params: MessageSendParams,
     context?: ServerCallContext
   ): AsyncGenerator<StreamEvent, void, undefined> {
-    const trace = extractSageoMetadata(params.message);
-    if (trace) {
-      await this.logIncomingRequest(trace, params);
+    let trace = extractSageoMetadata(params.message);
+    if (!trace) {
+      trace = this.buildFallbackTrace(params, context);
+      this.injectTraceMetadata(params.message, trace);
+    }
+
+    const loggedInteractionId = await this.runWithTimeout(
+      this.logIncomingRequest(trace, params),
+      'incoming request'
+    );
+    if (!trace.interaction_id && loggedInteractionId) {
+      trace.interaction_id = loggedInteractionId;
+      this.injectTraceMetadata(params.message, trace);
     }
 
     let lastEvent: StreamEvent | null = null;
@@ -79,17 +110,19 @@ export class SageoRequestHandler implements A2ARequestHandler {
         lastEvent = event;
         yield event;
       }
-      if (trace) {
-        await this.logResponse(trace, lastEvent ?? { status: 'completed' }, 200n);
-      }
+      await this.runWithTimeout(
+        this.logResponse(trace, lastEvent ?? { status: 'completed' }, 200n),
+        'response'
+      );
     } catch (error) {
-      if (trace) {
-        await this.logResponse(
+      await this.runWithTimeout(
+        this.logResponse(
           trace,
           { error: error instanceof Error ? error.message : String(error) },
           500n
-        );
-      }
+        ),
+        'response (error)'
+      );
       throw error;
     }
   }
@@ -178,9 +211,9 @@ export class SageoRequestHandler implements A2ARequestHandler {
   private async logIncomingRequest(
     trace: SageoTraceMetadata,
     params: MessageSendParams
-  ): Promise<void> {
-    if (!trace.interaction_id || !trace.caller_sageo_id) {
-      return;
+  ): Promise<string | null> {
+    if (!trace.caller_sageo_id) {
+      return null;
     }
 
     await this.ensureInitialized();
@@ -190,8 +223,8 @@ export class SageoRequestHandler implements A2ARequestHandler {
     const message = params.message;
 
     try {
-      await this.sageoClient.interaction.logRequest({
-        interactionId: trace.interaction_id,
+      const interactionId = await this.sageoClient.interaction.logRequest({
+        interactionId: trace.interaction_id || '',
         counterpartySageoId: trace.caller_sageo_id,
         isSender: false,
         requestHash,
@@ -203,9 +236,11 @@ export class SageoRequestHandler implements A2ARequestHandler {
         endUserId: trace.end_user?.id ?? '',
         endUserSessionId: trace.end_user?.session_id ?? '',
       });
+      return interactionId;
     } catch (error) {
       console.warn('Failed to log Sageo request on server:', error);
     }
+    return null;
   }
 
   private async logResponse(
@@ -233,6 +268,85 @@ export class SageoRequestHandler implements A2ARequestHandler {
       });
     } catch (error) {
       console.warn('Failed to log Sageo response on server:', error);
+    }
+  }
+
+  private buildFallbackTrace(
+    params: MessageSendParams,
+    context?: ServerCallContext
+  ): SageoTraceMetadata {
+    const message = params.message;
+    const contextId =
+      message.contextId || message.taskId || message.messageId || randomUUID();
+    const messageId = message.messageId || '';
+    const taskId = message.taskId || '';
+    const userName = context?.user?.userName || '';
+    const callerId = userName ? `external_${userName}` : `external_${contextId}`;
+    const endUserId = 'user_1';
+    const endUserSessionId = 'session_1';
+
+    return {
+      conversation_id: contextId,
+      interaction_id: '',
+      caller_sageo_id: callerId,
+      callee_sageo_id: this.sageoClient.mySageoIdValue || '',
+      end_user: { id: endUserId, session_id: endUserSessionId },
+      a2a: {
+        contextId,
+        taskId,
+        messageId,
+        method: 'message/send',
+      },
+      intent: extractIntent(message),
+      a2a_client_timestamp_ms: Date.now(),
+    };
+  }
+
+  private injectTraceMetadata(message: Message, metadata: SageoTraceMetadata): void {
+    if (!message.metadata) {
+      message.metadata = {};
+    }
+    message.metadata[SAGEO_EXTENSION_URI] = metadata;
+
+    if (!message.extensions) {
+      message.extensions = [];
+    }
+    if (!message.extensions.includes(SAGEO_EXTENSION_URI)) {
+      message.extensions.push(SAGEO_EXTENSION_URI);
+    }
+  }
+
+  private async runWithTimeout<T>(
+    promise: Promise<T>,
+    label: string
+  ): Promise<T | null> {
+    if (!this.logTimeoutMs || this.logTimeoutMs <= 0) {
+      try {
+        return await promise;
+      } catch (error) {
+        console.warn(`Sageo log ${label} failed:`, error);
+        return null;
+      }
+    }
+
+    let timeoutHandle: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<null>((resolve) => {
+      timeoutHandle = setTimeout(() => resolve(null), this.logTimeoutMs);
+    });
+
+    try {
+      const result = await Promise.race([promise, timeoutPromise]);
+      if (result === null) {
+        console.warn(`Sageo log ${label} timed out after ${this.logTimeoutMs}ms`);
+      }
+      return result as T | null;
+    } catch (error) {
+      console.warn(`Sageo log ${label} failed:`, error);
+      return null;
+    } finally {
+      if (timeoutHandle) {
+        clearTimeout(timeoutHandle);
+      }
     }
   }
 }

@@ -398,9 +398,13 @@ async function main(): Promise<boolean> {
   const { VoyageProvider, Wallet } = await import('js-moi-sdk');
   const provider = new VoyageProvider('devnet');
 
-  // Create interactions for the first agent
-  const firstAgent = agents[0];
-  const secondAgent = agents[1] ?? agents[0]; // Use second agent if exists, otherwise self-interaction
+  const firstAgent = agents.find((agent: any) => agent.sageo_id === 'agent_1');
+  const secondAgent = agents.find((agent: any) => agent.sageo_id === 'agent_2');
+
+  if (!firstAgent || !secondAgent) {
+    console.error('❌ agent_1 and agent_2 not found in agent_mnemonics.json');
+    return false;
+  }
 
   console.log(`\n🔄 Creating interactions between:`);
   console.log(`   Caller: ${firstAgent.name} (${firstAgent.sageo_id})`);

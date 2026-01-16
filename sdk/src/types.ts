@@ -4,7 +4,7 @@ import type {
   AgentSkill as A2AAgentSkill,
   Message,
   Task,
-  SendMessageRequest,
+  MessageSendParams,
 } from '@a2a-js/sdk';
 
 // Re-export A2A types for convenience
@@ -13,7 +13,7 @@ export type AgentSkill = A2AAgentSkill;
 
 // A2AClient interface (not exported from @a2a-js/sdk, so we define it)
 export interface A2AClient {
-  sendMessage(request: SendMessageRequest): Promise<Task | Message>;
+  sendMessage(params: MessageSendParams): Promise<Task | Message>;
   getTask(taskId: string): Promise<Task>;
 }
 

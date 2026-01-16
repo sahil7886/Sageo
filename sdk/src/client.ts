@@ -14,7 +14,9 @@ const manifestCache: Map<string, any> = new Map();
 export async function createProvider(
   rpcUrl?: string
 ): Promise<VoyageProvider> {
-  return new VoyageProvider(rpcUrl || 'devnet');
+  const network =
+    rpcUrl && !rpcUrl.startsWith('http') ? rpcUrl : 'devnet';
+  return new VoyageProvider(network);
 }
 
 export async function createWallet(

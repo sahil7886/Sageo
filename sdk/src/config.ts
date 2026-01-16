@@ -8,8 +8,8 @@ const __dirname = path.dirname(__filename);
 // Default RPC URL for MOI devnet
 export const DEFAULT_RPC_URL = 'https://voyage-rpc.moi.technology';
 
-export const DEFAULT_IDENTITY_LOGIC_ID = '0x20000000c90ca229fda422445dc1e27e6dd7db98b1cb94f29899c4ea00000000';
-export const DEFAULT_INTERACTION_LOGIC_ID = '0x20000000dc38f3e52ba02ae87361977cdc34a2a99f28fc0461f4f94800000000';
+export const DEFAULT_IDENTITY_LOGIC_ID = '0x200000005fa2f01086d256f2d5824c3093b3e3b079ffcb01f9f75e1500000000';
+export const DEFAULT_INTERACTION_LOGIC_ID = '0x2000000070c7ad3405c5d9efd61920bff4898c6a84b79f1b2212851900000000';
 
 // Paths to contract manifests (relative to SDK package root)
 export const IDENTITY_MANIFEST_PATH = path.resolve(

@@ -34,9 +34,11 @@ const AgentProfile = () => {
   const [profile, setProfile] = useState<AgentProfileType | null>(null);
   const [card, setCard] = useState<AgentCard | null>(null);
   const [interactions, setInteractions] = useState<InteractionRecord[]>([]);
+  const [totalInteractions, setTotalInteractions] = useState(0);
   const [stats, setStats] = useState<AgentInteractionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
     const loadAgent = async () => {
@@ -49,13 +51,14 @@ const AgentProfile = () => {
         const [profileData, cardData, interactionsData, statsData] = await Promise.all([
           fetchAgentProfile(id),
           fetchAgentCard(id),
-          fetchAgentInteractions(id, 5, 0).catch(() => ({ interactions: [], total: 0 })),
+          fetchAgentInteractions(id, 50, 0).catch(() => ({ interactions: [], total: 0 })),
           fetchAgentStats(id).catch(() => null)
         ]);
 
         setProfile(profileData);
         setCard(cardData);
         setInteractions(interactionsData.interactions || []);
+        setTotalInteractions(interactionsData.total || 0);
         setStats(statsData);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load agent');
@@ -66,6 +69,20 @@ const AgentProfile = () => {
 
     loadAgent();
   }, [id]);
+
+  const loadMoreInteractions = async () => {
+    if (!id || loadingMore) return;
+
+    setLoadingMore(true);
+    try {
+      const data = await fetchAgentInteractions(id, 50, interactions.length);
+      setInteractions([...interactions, ...data.interactions]);
+    } catch (err) {
+      console.error('Failed to load more interactions:', err);
+    } finally {
+      setLoadingMore(false);
+    }
+  };
 
   // Loading State
   if (loading) {
@@ -385,8 +402,20 @@ const AgentProfile = () => {
                 </tbody>
               </table>
             </div>
-            <div className="px-6 py-3 border-t border-surface-border bg-[#15181c] text-center">
-              <span className="text-xs text-text-secondary">{interactions.length} interactions shown</span>
+            <div className="px-6 py-3 border-t border-surface-border bg-[#15181c] flex items-center justify-between">
+              <span className="text-xs text-text-secondary">
+                Showing {interactions.length} of {totalInteractions} interactions
+              </span>
+              {interactions.length < totalInteractions && (
+                <button
+                  onClick={loadMoreInteractions}
+                  disabled={loadingMore}
+                  className="text-xs font-medium text-primary hover:text-white transition-colors flex items-center gap-1 disabled:opacity-50"
+                >
+                  {loadingMore ? 'Loading...' : 'Load More'}
+                  <span className="material-symbols-outlined text-[14px]">expand_more</span>
+                </button>
+              )}
             </div>
           </div>
         </div>

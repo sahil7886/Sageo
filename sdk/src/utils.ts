@@ -69,12 +69,56 @@ export function extractIntent(message: Message): string {
     if (part.kind === 'text' && 'text' in part) {
       const text = (part as any).text || '';
       
-      // Use first 50 chars as intent, or default
       if (text.length > 0) {
-        return text.substring(0, 50).trim() || 'agent_interaction';
+        return extractKeywords(text) || 'agent_interaction';
       }
     }
   }
 
   return 'agent_interaction';
+}
+
+function extractKeywords(text: string): string {
+  // Common stop words to filter out
+  const stopWords = new Set([
+    'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+    'has', 'he', 'in', 'is', 'it', 'its', 'of', 'on', 'that', 'the',
+    'to', 'was', 'will', 'with', 'the', 'this', 'but', 'they', 'have',
+    'had', 'what', 'said', 'each', 'which', 'their', 'time', 'if',
+    'up', 'out', 'many', 'then', 'them', 'these', 'so', 'some', 'her',
+    'would', 'make', 'like', 'into', 'him', 'has', 'two', 'more',
+    'very', 'after', 'words', 'long', 'than', 'first', 'been', 'call',
+    'who', 'oil', 'sit', 'now', 'find', 'down', 'day', 'did', 'get',
+    'come', 'made', 'may', 'part', 'user', 'asked', 'provide', 'context'
+  ]);
+
+  // Extract words: split by whitespace and punctuation, filter out empty strings
+  const words = text
+    .toLowerCase()
+    .replace(/[^\w\s]/g, ' ') // Replace punctuation with spaces
+    .split(/\s+/)
+    .filter(word => word.length > 0);
+
+  // Filter out stop words and short words (unless capitalized in original)
+  const keywords: string[] = [];
+  const originalWords = text.split(/\s+/);
+  
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const originalWord = originalWords[i] || word;
+    
+    // Keep word if:
+    // - It's longer than 3 characters AND not a stop word
+    // - OR it's capitalized in original (likely important)
+    if (
+      word.length > 3 && !stopWords.has(word) ||
+      /^[A-Z]/.test(originalWord) && word.length > 2
+    ) {
+      keywords.push(word);
+    }
+  }
+
+  // Join keywords and limit to 50 characters
+  const result = keywords.join('_').substring(0, 50).replace(/_+$/, '');
+  return result || 'agent_interaction';
 }
