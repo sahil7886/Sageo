@@ -1,8 +1,8 @@
 import type { VercelRequest, VercelResponse } from '@vercel/node';
-import app from '../../api/src/app.js';
-import { loadConfig } from '../../api/src/lib/config.js';
-import { initializeDeps } from '../../api/src/lib/deps.js';
-import { initializeMOI } from '../../api/src/lib/moi-client.js';
+import app from '../api/src/app.js';
+import { loadConfig } from '../api/src/lib/config.js';
+import { initializeDeps } from '../api/src/lib/deps.js';
+import { initializeMOI } from '../api/src/lib/moi-client.js';
 
 // Initialize config and dependencies (this runs once per serverless function instance)
 let initialized = false;
