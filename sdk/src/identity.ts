@@ -117,48 +117,62 @@ export class SageoIdentitySDK {
     const defaultOutputModes = JSON.stringify(card.defaultOutputModes || []);
 
     try {
-      let ix;
-      try {
-        const registerAgentCall = driver.routines.RegisterAgent(
-          card.name,
-          card.description,
-          card.version,
-          card.url,
-          card.protocolVersion,
-          defaultInputModes,
-          defaultOutputModes,
-          card.capabilities?.streaming || false,
-          card.capabilities?.pushNotifications || false,
-          card.capabilities?.stateTransitionHistory || false,
-          card.iconUrl || '',
-          card.documentationUrl || '',
-          card.preferredTransport || 'JSONRPC',
-          walletAddress,
-          BigInt(Math.floor(Date.now() / 1000))
+      const ix = await driver.routines.RegisterAgent(
+        card.name,
+        card.description,
+        card.version,
+        card.url,
+        card.protocolVersion,
+        defaultInputModes,
+        defaultOutputModes,
+        card.capabilities?.streaming || false,
+        card.capabilities?.pushNotifications || false,
+        card.capabilities?.stateTransitionHistory || false,
+        card.iconUrl || '',
+        card.documentationUrl || '',
+        card.preferredTransport || 'JSONRPC',
+        walletAddress,
+        BigInt(Math.floor(Date.now() / 1000))
+      );
+
+      // Handle different interaction object patterns
+      // Some endpoints return an interaction with .wait() directly (dynamic endpoints)
+      // Others return an interaction with .send() method first (regular endpoints)
+      let receipt: any;
+      if (!ix) {
+        throw new TransactionError(
+          `RegisterAgent returned null/undefined. Account at ${walletAddress} may not exist on-chain.`,
+          undefined,
+          new Error('RegisterAgent returned null/undefined')
         );
-
-        // Add timeout to detect hanging calls
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => {
-            reject(new Error('RegisterAgent call timed out after 30 seconds - account may not exist on-chain'));
-          }, 30000);
-        });
-        ix = await Promise.race([registerAgentCall, timeoutPromise]) as any;
-
-      } catch (createIxError) {
-        const errorMsg = createIxError instanceof Error ? createIxError.message : String(createIxError);
-        if (errorMsg.includes('account not found') || errorMsg.includes('timed out')) {
-          throw new TransactionError(
-            `Account at address ${walletAddress} does not exist on MOI devnet. The account must be funded and initialized before registering an agent. Please ensure the mnemonic corresponds to a funded account.`,
-            undefined,
-            createIxError
-          );
-        }
-        throw createIxError;
       }
 
-      const result = await ix.send({ fuelPrice: 1, fuelLimit: 5000 });
-      const receipt = await result.wait();
+      if (typeof (ix as any).wait === 'function') {
+        // Try direct wait pattern first (used in API scripts for some endpoints)
+        try {
+          receipt = await (ix as any).wait();
+        } catch (waitError) {
+          // If direct wait fails, try send pattern
+          if (typeof (ix as any).send === 'function') {
+            const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 5000 });
+            receipt = await result.wait();
+          } else {
+            throw waitError;
+          }
+        }
+      } else if (typeof (ix as any).send === 'function') {
+        // Send then wait pattern (used in SDK for regular endpoints)
+        const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 5000 });
+        receipt = await result.wait();
+      } else {
+        // Invalid return value - log what we got
+        const errorDetails = `Type: ${typeof ix}, keys: ${Object.keys(ix || {}).join(', ')}, hasWait: ${typeof (ix as any).wait}, hasSend: ${typeof (ix as any).send}`;
+        throw new TransactionError(
+          `RegisterAgent did not return a valid interaction object. Account at ${walletAddress} may not exist on-chain.`,
+          undefined,
+          new Error(`Expected interaction object with wait() or send() method, got: ${errorDetails}`)
+        );
+      }
 
       const sageoId =
         receipt.outputs?.[0] ??
