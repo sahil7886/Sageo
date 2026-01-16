@@ -17,7 +17,7 @@ import type { A2ARequestHandler } from '@a2a-js/sdk/server';
 export class SageoClient {
   private moiRpcUrl: string;
   private agentKey: string;
-  private agentCard: AgentCard;
+  private agentCard?: AgentCard;
   private identityLogicId: string;
   private interactionLogicId: string;
   private identitySDK!: SageoIdentitySDK;
@@ -28,7 +28,7 @@ export class SageoClient {
   constructor(
     moiRpcUrl: string,
     agentKey: string,
-    agentCard: AgentCard,
+    agentCard?: AgentCard,
     identityLogicId?: string,
     interactionLogicId?: string
   ) {
@@ -78,14 +78,12 @@ export class SageoClient {
     }
 
     const myProfile = await this.identitySDK.getMyProfile();
-    if (myProfile) {
-      this.mySageoId = myProfile.sageo_id;
-    } else {
-      const profile = await this.identitySDK.registerAgent({
-        agentCard: this.agentCard,
-      });
-      this.mySageoId = profile.sageo_id;
+    if (!myProfile) {
+      throw new Error(
+        'Agent not registered. Register the agent in Sageo before initializing the SDK.'
+      );
     }
+    this.mySageoId = myProfile.sageo_id;
 
     // Enlist in InteractionLogic
     if (this.mySageoId) {

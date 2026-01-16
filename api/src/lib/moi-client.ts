@@ -27,6 +27,11 @@ const manifestCache: Map<string, any> = new Map();
  */
 function extractStringFromPolo(hex: string): string | null {
   try {
+    // Validate input is actually a string
+    if (typeof hex !== 'string') {
+      return null;
+    }
+
     // Remove 0x prefix if present
     const cleanHex = hex.startsWith('0x') ? hex.slice(2) : hex;
 
@@ -296,49 +301,60 @@ export async function writeLogic(
       ?? receipt.ix_operations?.[0]?.data?.outputs
       ?? null;
 
+    // Debug logging for RegisterAgent
+    if (methodName === 'RegisterAgent' && outputsHex) {
+      console.log('RegisterAgent outputsHex type:', typeof outputsHex);
+      console.log('RegisterAgent outputsHex value:', JSON.stringify(outputsHex).slice(0, 200));
+    }
+
     // If not found, check for POLO-encoded outputs and decode them
     if (!returnValue && outputsHex) {
-      // Try simple extraction first (most reliable for interaction_id)
-      const extracted = extractStringFromPolo(outputsHex);
-      if (extracted && extracted.startsWith('ix_')) {
-        // Successfully extracted interaction_id
-        returnValue = { interaction_id: extracted };
+      // If outputsHex is already decoded (not a string), use it directly
+      if (typeof outputsHex !== 'string') {
+        returnValue = outputsHex;
       } else {
-        // Try ManifestCoder decoding as fallback
-        try {
-          // Find the routine in manifest to get return type info
-          const routine = manifest.elements?.find((el: any) =>
-            el.kind === 'callable' &&
-            el.data?.name === methodName
-          );
+        // Try simple extraction first (most reliable for interaction_id)
+        const extracted = extractStringFromPolo(outputsHex);
+        if (extracted && extracted.startsWith('ix_')) {
+          // Successfully extracted interaction_id
+          returnValue = { interaction_id: extracted };
+        } else {
+          // Try ManifestCoder decoding as fallback
+          try {
+            // Find the routine in manifest to get return type info
+            const routine = manifest.elements?.find((el: any) =>
+              el.kind === 'callable' &&
+              el.data?.name === methodName
+            );
 
-          if (routine && routine.data?.returns) {
-            // Use ManifestCoder to decode
-            const manifestCoder = new ManifestCoder(manifest);
-            // Try decodeOutput method (checking common method names)
-            const decoded = (manifestCoder as any).decodeOutput?.(outputsHex)
-              ?? (manifestCoder as any).decode?.(outputsHex, routine.data.returns)
-              ?? null;
+            if (routine && routine.data?.returns) {
+              // Use ManifestCoder to decode
+              const manifestCoder = new ManifestCoder(manifest);
+              // Try decodeOutput method (checking common method names)
+              const decoded = (manifestCoder as any).decodeOutput?.(outputsHex)
+                ?? (manifestCoder as any).decode?.(outputsHex, routine.data.returns)
+                ?? null;
 
-            if (decoded) {
-              returnValue = decoded;
+              if (decoded) {
+                returnValue = decoded;
+              }
+            }
+          } catch (decodeError) {
+            // If decoding fails, silently continue (some methods don't need decoding)
+            // Only log if it's not a known issue (Enlist has no return, LogResponse has complex record)
+            if (methodName !== 'LogResponse' && methodName !== 'Enlist') {
+              console.warn(`Failed to decode POLO outputs for ${methodName}:`, decodeError);
             }
           }
-        } catch (decodeError) {
-          // If decoding fails, silently continue (some methods don't need decoding)
-          // Only log if it's not a known issue (Enlist has no return, LogResponse has complex record)
-          if (methodName !== 'LogResponse' && methodName !== 'Enlist') {
-            console.warn(`Failed to decode POLO outputs for ${methodName}:`, decodeError);
-          }
-        }
 
-        // If still no value, return raw outputs with helper info
-        if (!returnValue) {
-          returnValue = {
-            outputs: outputsHex,
-            _raw: true,
-            _note: 'POLO-encoded, needs manual decoding'
-          };
+          // If still no value, return raw outputs with helper info
+          if (!returnValue) {
+            returnValue = {
+              outputs: outputsHex,
+              _raw: true,
+              _note: 'POLO-encoded, needs manual decoding'
+            };
+          }
         }
       }
     }

@@ -49,7 +49,7 @@ export class SageoInteractionSDK {
   }
 
   static async init(config: SDKConfig): Promise<SageoInteractionSDK> {
-    const provider = await createProvider();
+    const provider = await createProvider(config.rpcUrl);
     
     let wallet: Wallet | undefined;
     let writeDriver: LogicDriver | undefined;

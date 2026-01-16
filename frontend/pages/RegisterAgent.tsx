@@ -53,10 +53,166 @@ const RegisterAgent = () => {
     }
   };
 
+  // Show success screen if registration complete
+  if (successId && mnemonic && walletAddress) {
+    return (
+      <div className="flex-1 flex justify-center py-10 px-4 md:px-10 lg:px-20 bg-background-dark min-h-screen">
+        <div className="flex flex-col w-full max-w-[960px] gap-6">
+          {/* Page Header */}
+          <div className="flex flex-col gap-2">
+            <Link to="/developers" className="flex items-center gap-2 text-text-secondary text-sm mb-2 hover:text-white transition-colors">
+              <span className="material-symbols-outlined text-[16px]">arrow_back</span>
+              <span>Back to Developers</span>
+            </Link>
+          </div>
+
+          {/* Success Message */}
+          <div className="flex flex-col items-center justify-center gap-6 py-12">
+            <div className="size-20 rounded-full bg-green-500/10 border-2 border-green-500 flex items-center justify-center">
+              <span className="material-symbols-outlined text-green-500 text-[48px]">check_circle</span>
+            </div>
+            <div className="text-center">
+              <h1 className="text-white text-3xl font-bold mb-2">Agent Registered Successfully!</h1>
+              <p className="text-text-secondary text-lg">Your agent has been added to the Sageo network</p>
+            </div>
+
+            {/* Agent ID */}
+            <div className="w-full max-w-2xl bg-surface-dark border border-surface-border rounded-xl p-6">
+              <div className="text-xs uppercase tracking-wider text-text-secondary mb-2">Sageo Agent ID</div>
+              <div className="flex items-center justify-between gap-4">
+                <span className="text-2xl font-mono font-bold text-primary">{successId}</span>
+                <Link
+                  to={`/agent/${successId}`}
+                  className="px-4 py-2 rounded-lg bg-primary/10 border border-primary text-primary text-sm font-medium hover:bg-primary/20 transition-colors"
+                >
+                  View Profile
+                </Link>
+              </div>
+            </div>
+
+            {/* Critical Information */}
+            <div className="w-full max-w-2xl bg-amber-500/10 border-2 border-amber-500 rounded-xl p-6">
+              <div className="flex items-start gap-3 mb-4">
+                <span className="material-symbols-outlined text-amber-500 text-[24px]">warning</span>
+                <div>
+                  <h3 className="text-amber-200 font-bold text-lg mb-1">Save Your Credentials</h3>
+                  <p className="text-amber-100/80 text-sm">This information will only be shown once. Store it securely - you'll need it to authenticate your agent.</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-4 mt-4">
+                {/* Mnemonic */}
+                <div className="bg-black/30 border border-amber-500/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs uppercase tracking-wider text-amber-200/70 font-bold">Mnemonic Phrase</div>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(mnemonic)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-200 hover:text-white transition-colors px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                      Copy
+                    </button>
+                  </div>
+                  <div className="font-mono text-sm text-amber-100 break-words bg-black/20 p-3 rounded">{mnemonic}</div>
+                </div>
+
+                {/* Wallet Address */}
+                <div className="bg-black/30 border border-amber-500/30 rounded-lg p-4">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs uppercase tracking-wider text-amber-200/70 font-bold">Wallet Address</div>
+                    <button
+                      onClick={() => navigator.clipboard.writeText(walletAddress)}
+                      className="inline-flex items-center gap-1 text-xs text-amber-200 hover:text-white transition-colors px-2 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">content_copy</span>
+                      Copy
+                    </button>
+                  </div>
+                  <div className="font-mono text-sm text-amber-100 break-all bg-black/20 p-3 rounded">{walletAddress}</div>
+                </div>
+              </div>
+            </div>
+
+            {/* Next Steps */}
+            <div className="w-full max-w-2xl bg-surface-dark border border-surface-border rounded-xl p-6">
+              <h3 className="text-white font-bold text-lg mb-4 flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary">integration_instructions</span>
+                Next Steps: Integrate with Your Agent
+              </h3>
+
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">1</div>
+                  <div>
+                    <p className="text-white font-medium mb-1">Install the Sageo SDK</p>
+                    <div className="bg-black/50 rounded px-3 py-2 font-mono text-sm text-slate-300 border border-surface-border">
+                      npm install @sageo/interaction-sdk
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">2</div>
+                  <div>
+                    <p className="text-white font-medium mb-1">Initialize the SageoClient</p>
+                    <div className="bg-black/50 rounded px-3 py-2 font-mono text-xs text-slate-300 border border-surface-border overflow-x-auto">
+                      <div className="text-purple-400">import</div> {`{ SageoClient }`} <div className="text-purple-400">from</div> <div className="text-green-400">'@sageo/interaction-sdk'</div>;<br/>
+                      <div className="text-purple-400 mt-2">const</div> client = <div className="text-purple-400">new</div> SageoClient(<br/>
+                      &nbsp;&nbsp;<div className="text-green-400">'https://voyage-rpc.moi.technology'</div>,<br/>
+                      &nbsp;&nbsp;process.env.<div className="text-blue-400">AGENT_MNEMONIC</div><br/>
+                      );<br/>
+                      <div className="text-purple-400 mt-2">await</div> client.initialize();
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3">
+                  <div className="size-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-sm font-bold shrink-0 mt-0.5">3</div>
+                  <div>
+                    <p className="text-white font-medium mb-1">Start logging interactions</p>
+                    <p className="text-text-secondary text-sm">All A2A interactions will now be recorded on the MOI blockchain.</p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-6 pt-4 border-t border-surface-border flex gap-3">
+                <Link to="/docs" className="flex-1 text-center px-4 py-2 rounded-lg bg-surface-border text-white text-sm font-medium hover:bg-[#354247] transition-colors">
+                  View Documentation
+                </Link>
+                <Link to="/developers" className="flex-1 text-center px-4 py-2 rounded-lg bg-primary text-white text-sm font-bold hover:bg-primary/90 transition-colors">
+                  Go to Developer Console
+                </Link>
+              </div>
+            </div>
+
+            {/* Register Another Agent */}
+            <button
+              onClick={() => {
+                setSuccessId(null);
+                setMnemonic(null);
+                setWalletAddress(null);
+                setWarning(null);
+                setName('');
+                setVersion('');
+                setUrl('');
+                setDescription('');
+                setTags([]);
+              }}
+              className="text-text-secondary hover:text-white text-sm font-medium flex items-center gap-1 transition-colors"
+            >
+              <span className="material-symbols-outlined text-[18px]">add_circle</span>
+              Register Another Agent
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex-1 flex justify-center py-10 px-4 md:px-10 lg:px-20 bg-background-dark min-h-screen">
       <div className="flex flex-col w-full max-w-[960px] gap-6">
-        
+
         {/* Page Header */}
         <div className="flex flex-col gap-2">
           <Link to="/developers" className="flex items-center gap-2 text-text-secondary text-sm mb-2 hover:text-white transition-colors">
@@ -98,52 +254,10 @@ const RegisterAgent = () => {
           </div>
         </div>
 
-        {/* Error and Success Messages */}
+        {/* Error Message */}
         {error && (
           <div className="w-full rounded-lg border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200">
             {error}
-          </div>
-        )}
-        {successId && (
-          <div className="w-full rounded-lg border border-green-500/40 bg-green-500/10 p-4 text-sm text-green-100 flex flex-col gap-3">
-            <div>
-              Registered: <span className="font-mono text-green-200">{successId}</span>
-            </div>
-            {(walletAddress || mnemonic) && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-green-100">
-                {walletAddress && (
-                  <div className="bg-black/20 border border-green-500/20 rounded-lg p-3">
-                    <div className="text-[11px] uppercase tracking-wider text-green-200/70">Wallet Address</div>
-                    <div className="mt-1 font-mono break-all">{walletAddress}</div>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(walletAddress)}
-                      className="mt-2 inline-flex items-center gap-1 text-[11px] text-green-200 hover:text-white transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                      Copy address
-                    </button>
-                  </div>
-                )}
-                {mnemonic && (
-                  <div className="bg-black/20 border border-green-500/20 rounded-lg p-3">
-                    <div className="text-[11px] uppercase tracking-wider text-green-200/70">Mnemonic</div>
-                    <div className="mt-1 font-mono break-words">{mnemonic}</div>
-                    <button
-                      type="button"
-                      onClick={() => navigator.clipboard.writeText(mnemonic)}
-                      className="mt-2 inline-flex items-center gap-1 text-[11px] text-green-200 hover:text-white transition-colors"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">content_copy</span>
-                      Copy mnemonic
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-            {warning && (
-              <div className="text-[11px] text-green-200/80">{warning}</div>
-            )}
           </div>
         )}
 

@@ -152,45 +152,29 @@ const Developers = () => {
                   <span className="text-slate-600 select-none">$</span>
                   <span className="text-slate-300">npm install <span className="text-primary">@sageo/interaction-sdk</span></span>
                 </div>
-                <div className="flex gap-4 mt-2 text-xs text-slate-500">
-                  <span className="text-slate-600 select-none">+</span>
-                  <span className="text-slate-500">Installing dependencies...</span>
-                </div>
-                <div className="flex gap-4 mt-1 text-xs text-slate-400">
-                  <span className="text-slate-600 select-none">+</span>
-                  <span><span className="text-purple-400">js-moi-sdk</span><span className="text-slate-500">@^0.7.0-rc4</span></span>
-                </div>
-                <div className="flex gap-4 mt-1 text-xs text-slate-400">
-                  <span className="text-slate-600 select-none">+</span>
-                  <span><span className="text-purple-400">@a2a-js/sdk</span><span className="text-slate-500">@^0.3.0</span></span>
-                </div>
-                <div className="flex gap-4 mt-1 text-xs text-slate-400">
-                  <span className="text-slate-600 select-none">+</span>
-                  <span><span className="text-purple-400">js-yaml</span><span className="text-slate-500">@^4.1.0</span></span>
-                </div>
                 <div className="flex gap-4 mt-4 pt-3 border-t border-white/5 group">
                   <span className="text-slate-600 select-none">1</span>
                   <span><span className="text-purple-400">import</span> <span className="text-slate-300">{`{ SageoClient }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@sageo/interaction-sdk'</span>;</span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">2</span>
-                  <span className="text-slate-500">// Initialize client with MOI RPC and agent key</span>
+                  <span className="text-slate-500">// Register agent first</span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">3</span>
-                  <span><span className="text-purple-400">const</span> <span className="text-blue-400">client</span> = <span className="text-purple-400">new</span> <span className="text-yellow-300">SageoClient</span><span className="text-slate-300">(</span></span>
+                  <span className="text-slate-500">// Initialize with agent mnemonic</span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">4</span>
-                  <span className="text-slate-300 pl-4"><span className="text-green-400">'https://voyage-rpc.moi.technology'</span>,</span>
+                  <span><span className="text-purple-400">const</span> <span className="text-blue-400">client</span> = <span className="text-purple-400">new</span> <span className="text-yellow-300">SageoClient</span><span className="text-slate-300">(</span></span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">5</span>
-                  <span className="text-slate-300 pl-4">process.env.<span className="text-blue-400">AGENT_PRIVATE_KEY</span>,</span>
+                  <span className="text-slate-300 pl-4"><span className="text-green-400">'https://voyage-rpc.moi.technology'</span>,</span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">6</span>
-                  <span className="text-slate-300 pl-4"><span className="text-blue-400">agentCard</span></span>
+                  <span className="text-slate-300 pl-4">process.env.<span className="text-blue-400">AGENT_MNEMONIC</span></span>
                 </div>
                 <div className="flex gap-4 group">
                   <span className="text-slate-600 select-none">7</span>
@@ -198,10 +182,6 @@ const Developers = () => {
                 </div>
                 <div className="flex gap-4 group mt-2">
                   <span className="text-slate-600 select-none">8</span>
-                  <span className="text-slate-500">// Auto-registers your agent on Sageo</span>
-                </div>
-                <div className="flex gap-4 group">
-                  <span className="text-slate-600 select-none">9</span>
                   <span><span className="text-purple-400">await</span> <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">initialize</span><span className="text-slate-300">();</span></span>
                 </div>
                 <div className="mt-6 pt-4 border-t border-white/5 flex justify-between items-center">
