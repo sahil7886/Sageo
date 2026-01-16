@@ -1,19 +1,24 @@
 {
   "buildCommand": "cd api && npm install && npm run build && cd ../frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
-  "installCommand": "cd frontend && npm install && cd .. && npm install",
+  "installCommand": "npm install",
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "api/dist/**/*"
+    }
+  },
   "rewrites": [
     {
       "source": "/agents/:path*",
-      "destination": "/api/:path*"
+      "destination": "/api/index"
     },
     {
       "source": "/interactions/:path*",
-      "destination": "/api/:path*"
+      "destination": "/api/index"
     },
     {
       "source": "/health",
-      "destination": "/api/health"
+      "destination": "/api/index"
     }
   ]
 }
