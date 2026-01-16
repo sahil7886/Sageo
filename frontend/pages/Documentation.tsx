@@ -233,7 +233,7 @@ const Documentation = () => {
               <h2 className="text-2xl font-bold text-white">SDK Installation & Setup</h2>
             </div>
             <p className="text-base leading-7 text-gray-300">
-              The Sageo SDK provides a unified interface for interacting with the Sageo network on MOI. It handles agent registration, interaction logging, and seamless integration with the A2A (Agent-to-Agent) protocol. This guide will walk you through installation, configuration, and basic usage.
+              The Sageo SDK provides a unified interface for interacting with the Sageo network on MOI. It supports identity lookups, interaction logging, and seamless integration with the A2A (Agent-to-Agent) protocol. This guide will walk you through installation, configuration, and basic usage.
             </p>
 
             {/* Prerequisites */}
@@ -249,7 +249,11 @@ const Documentation = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>
-                  <span><strong className="text-white">MOI Wallet</strong> with a funded account (for transaction fees)</span>
+                  <span><strong className="text-white">MOI Wallet</strong> with a funded account and mnemonic phrase (for transaction fees)</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-primary mt-1">•</span>
+                  <span><strong className="text-white">Registered Sageo agent</strong> via the Sageo app or API (required before SDK usage)</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>
@@ -272,19 +276,21 @@ const Documentation = () => {
                 </div>
               </div>
               <div className="p-6 text-gray-300 overflow-x-auto leading-relaxed">
-                <pre><code><span className="text-slate-500"># Install via npm (includes all dependencies)</span>
-<span className="text-slate-400">npm install</span> <span className="text-primary">@sageo/interaction-sdk</span>
-
-<span className="text-slate-500"># Dependencies automatically installed:</span>
-<span className="text-slate-400">+</span> <span className="text-purple-400">js-moi-sdk</span><span className="text-slate-500">@^0.7.0-rc4</span> <span className="text-slate-500">(MOI blockchain SDK)</span>
-<span className="text-slate-400">+</span> <span className="text-purple-400">@a2a-js/sdk</span><span className="text-slate-500">@^0.3.0</span> <span className="text-slate-500">(A2A protocol)</span>
-<span className="text-slate-400">+</span> <span className="text-purple-400">js-yaml</span><span className="text-slate-500">@^4.1.0</span> <span className="text-slate-500">(Manifest parsing)</span>
-
-<span className="text-slate-500"># Or with yarn</span>
-<span className="text-slate-400">yarn add</span> <span className="text-primary">@sageo/interaction-sdk</span>
-
-<span className="text-slate-500"># Or with pnpm</span>
-<span className="text-slate-400">pnpm add</span> <span className="text-primary">@sageo/interaction-sdk</span></code></pre>
+                <pre><code>
+                  <span className="block"><span className="text-slate-500"># Install via npm (includes all dependencies)</span></span>
+                  <span className="block"><span className="text-slate-400">npm install</span> <span className="text-primary">@sageo/interaction-sdk</span></span>
+                  <span className="block"> </span>
+                  <span className="block"><span className="text-slate-500"># Dependencies automatically installed:</span></span>
+                  <span className="block"><span className="text-slate-400">+</span> <span className="text-purple-400">js-moi-sdk</span><span className="text-slate-500">@^0.7.0-rc4</span> <span className="text-slate-500">(MOI blockchain SDK)</span></span>
+                  <span className="block"><span className="text-slate-400">+</span> <span className="text-purple-400">@a2a-js/sdk</span><span className="text-slate-500">@^0.3.0</span> <span className="text-slate-500">(A2A protocol)</span></span>
+                  <span className="block"><span className="text-slate-400">+</span> <span className="text-purple-400">js-yaml</span><span className="text-slate-500">@^4.1.0</span> <span className="text-slate-500">(Manifest parsing)</span></span>
+                  <span className="block"> </span>
+                  <span className="block"><span className="text-slate-500"># Or with yarn</span></span>
+                  <span className="block"><span className="text-slate-400">yarn add</span> <span className="text-primary">@sageo/interaction-sdk</span></span>
+                  <span className="block"> </span>
+                  <span className="block"><span className="text-slate-500"># Or with pnpm</span></span>
+                  <span className="block"><span className="text-slate-400">pnpm add</span> <span className="text-primary">@sageo/interaction-sdk</span></span>
+                </code></pre>
               </div>
             </div>
 
@@ -300,29 +306,23 @@ const Documentation = () => {
                   </div>
                 </div>
                 <div className="p-6 text-gray-300 overflow-x-auto leading-relaxed">
-                  <pre><code><span className="text-purple-400">import</span> <span className="text-slate-300">{`{ SageoClient }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@sageo/interaction-sdk'</span>;
-<span className="text-purple-400">import</span> <span className="text-purple-400">type</span> <span className="text-slate-300">{`{ AgentCard }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@a2a-js/sdk'</span>;
-
-<span className="text-slate-500">// 1. Define your agent card</span>
-<span className="text-purple-400">const</span> <span className="text-blue-400">agentCard</span>: <span className="text-yellow-300">AgentCard</span> = <span className="text-slate-300">{`{`}</span>
-  <span className="text-blue-400">name</span>: <span className="text-green-400">"MyAgent"</span>,
-  <span className="text-blue-400">description</span>: <span className="text-green-400">"My awesome AI agent"</span>,
-  <span className="text-blue-400">version</span>: <span className="text-green-400">"1.0.0"</span>,
-  <span className="text-blue-400">url</span>: <span className="text-green-400">"https://myagent.example.com"</span>
-<span className="text-slate-300">{`};`}</span>
-
-<span className="text-slate-500">// 2. Initialize the client</span>
-<span className="text-purple-400">const</span> <span className="text-blue-400">client</span> = <span className="text-purple-400">new</span> <span className="text-yellow-300">SageoClient</span><span className="text-slate-300">(</span>
-  <span className="text-green-400">"https://voyage-rpc.moi.technology"</span>, <span className="text-slate-500">// MOI RPC URL</span>
-  <span className="text-green-400">process.env.AGENT_PRIVATE_KEY</span>, <span className="text-slate-500">// Agent's private key</span>
-  <span className="text-blue-400">agentCard</span>
-<span className="text-slate-300">);</span>
-
-<span className="text-slate-500">// 3. Initialize and register</span>
-<span className="text-purple-400">await</span> <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">initialize</span><span className="text-slate-300">();</span>
-
-<span className="text-slate-500">// Your agent is now registered on Sageo!</span>
-<span className="text-purple-400">const</span> <span className="text-blue-400">mySageoId</span> = <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">getSageoId</span><span className="text-slate-300">();</span></code></pre>
+                  <pre><code>
+                    <span className="block"><span className="text-purple-400">import</span> <span className="text-slate-300">{`{ SageoClient }`}</span> <span className="text-purple-400">from</span> <span className="text-green-400">'@sageo/interaction-sdk'</span>;</span>
+                    <span className="block"> </span>
+                    <span className="block"><span className="text-slate-500">// 1. Register your agent at sageo.moi.technology first</span></span>
+                    <span className="block"><span className="text-slate-500">// 2. Initialize the client with agent mnemonic</span></span>
+                    <span className="block"><span className="text-purple-400">const</span> <span className="text-blue-400">client</span> = <span className="text-purple-400">new</span> <span className="text-yellow-300">SageoClient</span><span className="text-slate-300">(</span></span>
+                    <span className="block">{'  '}<span className="text-green-400">"https://voyage-rpc.moi.technology"</span>, <span className="text-slate-500">// MOI RPC URL</span></span>
+                    <span className="block">{'  '}<span className="text-green-400">process.env.AGENT_MNEMONIC</span> <span className="text-slate-500">// Agent mnemonic from registration</span></span>
+                    <span className="block"><span className="text-slate-300">);</span></span>
+                    <span className="block"> </span>
+                    <span className="block"><span className="text-slate-500">// 3. Initialize for interaction logging</span></span>
+                    <span className="block"><span className="text-purple-400">await</span> <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">initialize</span><span className="text-slate-300">();</span></span>
+                    <span className="block"> </span>
+                    <span className="block"><span className="text-slate-500">// Your agent is now ready to log interactions</span></span>
+                    <span className="block"><span className="text-purple-400">const</span> <span className="text-blue-400">profile</span> = <span className="text-purple-400">await</span> <span className="text-blue-400">client</span><span className="text-slate-300">.</span><span className="text-yellow-300">getMyProfile</span><span className="text-slate-300">();</span></span>
+                    <span className="block"><span className="text-purple-400">const</span> <span className="text-blue-400">mySageoId</span> = <span className="text-blue-400">profile</span><span className="text-slate-300">.</span><span className="text-blue-400">sageo_id</span><span className="text-slate-300">;</span></span>
+                  </code></pre>
                 </div>
               </div>
             </div>
@@ -356,10 +356,10 @@ const Documentation = () => {
                     <div>
                       <h4 className="font-bold text-white text-base mb-2">Client Initialization</h4>
                       <p className="text-sm text-text-secondary leading-relaxed">
-                        The <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">SageoClient</code> constructor 
-                        accepts your MOI RPC URL, agent private key, and agent card. It internally initializes two SDK modules: 
-                        <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoIdentitySDK</code> for agent 
-                        registration and <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoInteractionSDK</code> 
+                        The <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">SageoClient</code> constructor
+                        accepts your MOI RPC URL and agent mnemonic. It initializes two SDK modules:
+                        <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoIdentitySDK</code> for identity lookups
+                        and <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs ml-1">SageoInteractionSDK</code>
                         for interaction logging.
                       </p>
                     </div>
@@ -372,12 +372,10 @@ const Documentation = () => {
                       <span className="text-primary font-bold text-sm">3</span>
                     </div>
                     <div>
-                      <h4 className="font-bold text-white text-base mb-2">Automatic Registration</h4>
+                      <h4 className="font-bold text-white text-base mb-2">Manual Registration</h4>
                       <p className="text-sm text-text-secondary leading-relaxed">
-                        When you call <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">initialize()</code>, 
-                        the SDK automatically checks if your agent is already registered. If not, it registers your agent 
-                        on the Identity contract and assigns a unique Sageo ID. It also enlists your agent in the Interaction 
-                        contract for logging capabilities.
+                        Before using the SDK, register your agent in Sageo via the app or API. The SDK expects an existing 
+                        on-chain profile and will error if the agent is not registered yet.
                       </p>
                     </div>
                   </div>
@@ -391,9 +389,9 @@ const Documentation = () => {
                     <div>
                       <h4 className="font-bold text-white text-base mb-2">Ready to Use</h4>
                       <p className="text-sm text-text-secondary leading-relaxed">
-                        Once initialized, your agent is discoverable on the Sageo network. You can now use the client to log 
-                        interactions, query other agents, and integrate with the A2A protocol for seamless agent-to-agent 
-                        communication.
+                        After registration, call <code className="px-1.5 py-0.5 rounded bg-[#2c3639] text-primary text-xs">initialize()</code> 
+                        to set up the SDK and enlist the agent for interaction logging. You can then log interactions, query 
+                        other agents, and integrate with the A2A protocol.
                       </p>
                     </div>
                   </div>
@@ -418,7 +416,7 @@ const Documentation = () => {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>
-                  <span>Your agent's private key should be kept secure and never exposed in client-side code.</span>
+                  <span>Your agent's mnemonic should be kept secure and never exposed in client-side code.</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-primary mt-1">•</span>

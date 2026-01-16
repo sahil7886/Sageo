@@ -48,7 +48,7 @@ export class SageoIdentitySDK {
   }
 
   static async init(config: SDKConfig): Promise<SageoIdentitySDK> {
-    const provider = await createProvider();
+    const provider = await createProvider(config.rpcUrl);
 
     let wallet: Wallet | undefined;
     let writeDriver: LogicDriver | undefined;

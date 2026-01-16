@@ -70,7 +70,7 @@ async function testSDK() {
     console.log('   ✅ SageoClient created\n');
 
     // Test: Get/Register Agent Profile
-    console.log('2. Testing getMyProfile() (will register if not exists)...');
+    console.log('2. Testing getMyProfile() (requires manual registration)...');
     try {
       const profile = await sageoClient.getMyProfile();
       console.log('   ✅ Agent Profile Retrieved:');
@@ -82,17 +82,11 @@ async function testSDK() {
       console.log(`      - Agent URL: ${profile.agent_card.url}\n`);
     } catch (error) {
       const errorMsg = error instanceof Error ? error.message : String(error);
-      if (errorMsg.includes('account not found')) {
-        console.error('   ❌ Account not found on devnet');
-        console.error('   ⚠️  This wallet account needs to be funded on MOI devnet first.');
-        console.error('   ⚠️  The SDK code is working correctly, but needs a funded account.');
-        console.error('   💡 Options:');
-        console.error('      1. Fund this account via devnet faucet (if available)');
-        console.error('      2. Use a different mnemonic with a funded account');
-        console.error('      3. Wait for the account to be created/funded\n');
-        throw new Error(
-          'Account not found - wallet must exist and be funded on MOI devnet. This is a blockchain/environment issue, not an SDK bug.'
-        );
+      if (errorMsg.includes('Agent not registered')) {
+        console.error('   ❌ Agent not registered on Sageo');
+        console.error('   ⚠️  Register the agent via the Sageo app or API before running this test.');
+        console.error('   ⚠️  Ensure the wallet is funded and has an on-chain profile.\n');
+        throw new Error('Agent not registered - register before SDK usage.');
       }
       console.error('   ❌ Failed to get profile:', error);
       throw error;
