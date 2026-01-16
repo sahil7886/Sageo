@@ -175,17 +175,43 @@ async function main() {
     }
   }
 
-  // Save to file
+  // Save to file (merge with existing if present)
   console.log('\n' + '='.repeat(50));
   console.log('💾 Saving agent information...');
   
+  // Load existing agents if file exists
+  let existingAgents: AgentInfo[] = [];
+  let existingCreatedAt = new Date().toISOString();
+  
+  if (fs.existsSync(OUTPUT_FILE)) {
+    try {
+      const existingData = JSON.parse(fs.readFileSync(OUTPUT_FILE, 'utf-8')) as AgentMnemonicsFile;
+      existingAgents = existingData.agents || [];
+      existingCreatedAt = existingData.created_at || existingCreatedAt;
+      console.log(`📂 Found ${existingAgents.length} existing agent(s) in file`);
+    } catch (error) {
+      console.log(`⚠️  Could not read existing file, will create new one: ${(error as Error).message}`);
+    }
+  }
+  
+  // Merge agents, avoiding duplicates by wallet_address
+  const existingWalletAddresses = new Set(existingAgents.map(a => a.wallet_address));
+  const newAgentsToAdd = registeredAgents.filter(a => !existingWalletAddresses.has(a.wallet_address));
+  
+  if (newAgentsToAdd.length < registeredAgents.length) {
+    const duplicates = registeredAgents.length - newAgentsToAdd.length;
+    console.log(`⚠️  Skipping ${duplicates} duplicate agent(s) already in file`);
+  }
+  
+  const allAgents = [...existingAgents, ...newAgentsToAdd];
+  
   const outputData: AgentMnemonicsFile = {
-    created_at: new Date().toISOString(),
-    agents: registeredAgents
+    created_at: existingCreatedAt, // Preserve original creation date
+    agents: allAgents
   };
 
   fs.writeFileSync(OUTPUT_FILE, JSON.stringify(outputData, null, 2), 'utf-8');
-  console.log(`✅ Saved to: ${OUTPUT_FILE}`);
+  console.log(`✅ Saved ${allAgents.length} total agent(s) to: ${OUTPUT_FILE}`);
 
   // Print manual funding instructions
   console.log('\n' + '━'.repeat(70));

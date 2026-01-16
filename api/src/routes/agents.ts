@@ -4,10 +4,17 @@ import { requireContract } from '../lib/deps.js';
 import { validateSageoId } from '../lib/validate.js';
 import { NotFoundError, ApiError } from '../lib/errors.js';
 import { getActorInteractions, getActorStats } from '../lib/interaction-state.js';
-import { readLogic, writeLogic, IDENTITY_LOGIC_ID, INTERACTION_LOGIC_ID, MOI_DERIVATION_PATH } from '../lib/moi-client.js';
+import { readLogic, writeLogic, IDENTITY_LOGIC_ID, INTERACTION_LOGIC_ID, MOI_DERIVATION_PATH, initializeMOI } from '../lib/moi-client.js';
 import { getConfig } from '../lib/config.js';
-import { Wallet } from 'js-moi-sdk';
+import { Wallet, LogicDriver } from 'js-moi-sdk';
 import { generateMnemonic } from 'js-moi-bip39';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import yaml from 'js-yaml';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const router = Router();
 
@@ -431,12 +438,27 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
 
     console.log(`🔑 Generated wallet for agent "${name}": ${wallet_address}`);
 
-    const timestamp = Date.now();
+    // Use timestamp in seconds (matching the script)
+    const timestamp = Math.floor(Date.now() / 1000);
+    const walletAddressString = wallet_address.toString();
 
-    const result = await writeLogic(
-      IDENTITY_LOGIC_ID,
-      'RegisterAgent',
-      'identity',
+    // Get identity logic driver directly (matching the script approach)
+    const identityAddress = requireContract('identity');
+    const { wallet: deployerWallet } = await initializeMOI();
+
+    // Load identity manifest
+    const IDENTITY_MANIFEST_PATH = path.resolve(__dirname, '../../../contract/SageoIdentityLogic/sageoidentitylogic.yaml');
+    if (!fs.existsSync(IDENTITY_MANIFEST_PATH)) {
+      throw new Error(`Identity manifest not found at: ${IDENTITY_MANIFEST_PATH}`);
+    }
+    const identityManifestYaml = fs.readFileSync(IDENTITY_MANIFEST_PATH, 'utf-8');
+    const identityManifestYamlSafe = identityManifestYaml.replace(/value:\s+(0x[0-9a-fA-F]+)/g, 'value: "$1"');
+    const identityManifest = yaml.load(identityManifestYamlSafe) as any;
+
+    const logicDriver = new LogicDriver(identityAddress, identityManifest, deployerWallet);
+
+    // Register agent directly using LogicDriver (matching script)
+    const ix = await logicDriver.routines.RegisterAgent(
       name,
       description,
       version,
@@ -450,19 +472,28 @@ router.post('/register', async (req: Request, res: Response, next: NextFunction)
       icon_url,
       documentation_url,
       preferred_transport,
-      wallet_address,
+      walletAddressString,
       timestamp
     );
 
-    // result may be { sageo_id } or raw receipt; normalize
-    const sageo_id = (result as any)?.sageo_id ?? (result as any)?.output?.sageo_id ?? (result as any)?.result?.sageo_id;
+    console.log(`⏳ Waiting for confirmation... (Hash: ${ix.hash})`);
+    await ix.wait();
+
+    // Get current agent count to determine sageo_id
+    let sageo_id = 'agent_unknown';
+    try {
+      const countResult = await logicDriver.routines.GetAgentCount();
+      const count = countResult?.output?.count ?? countResult?.count ?? 0;
+      sageo_id = `agent_${count}`;
+    } catch (err) {
+      console.warn('Could not get agent count:', err);
+    }
 
     return res.status(201).json({
       sageo_id,
       mnemonic,
-      wallet_address,
-      warning: '⚠️  IMPORTANT: Save this mnemonic securely. It will not be shown again and is required to perform actions as this agent.',
-      result
+      wallet_address: walletAddressString,
+      warning: '⚠️  IMPORTANT: Save this mnemonic securely. It will not be shown again and is required to perform actions as this agent.'
     });
   } catch (err) {
     next(err);
