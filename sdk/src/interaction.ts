@@ -33,6 +33,7 @@ export class SageoInteractionSDK {
   private readDriver: LogicDriver;
   private writeDriver?: LogicDriver;
   private logicId: string;
+  private static readonly STORAGE_NOT_FOUND = 'logic storage tree not found';
 
   private constructor(
     provider: VoyageProvider,
@@ -97,6 +98,144 @@ export class SageoInteractionSDK {
     return this.writeDriver;
   }
 
+  private toNumber(value: unknown): number {
+    if (typeof value === 'bigint') {
+      return Number(value);
+    }
+    if (typeof value === 'number') {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() !== '') {
+      const parsed = Number(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+    return 0;
+  }
+
+  private isStorageNotFound(error: unknown): boolean {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes(SageoInteractionSDK.STORAGE_NOT_FOUND);
+  }
+
+  private async readActorValue<T>(
+    address: string,
+    build: (builder: any) => any
+  ): Promise<T> {
+    if (!this.readDriver.ephemeralState) {
+      throw new Error('Interaction logic does not expose actor state');
+    }
+    return this.readDriver.ephemeralState.get(address, build) as Promise<T>;
+  }
+
+  private async readInteractionRecord(
+    address: string,
+    index: number
+  ): Promise<InteractionRecord> {
+    const [
+      interaction_id,
+      caller_sageo_id,
+      callee_sageo_id,
+      request_hash,
+      response_hash,
+      intent,
+      status_code,
+      timestamp,
+      a2a_context_id,
+      a2a_task_id,
+      a2a_message_id,
+      end_user_id,
+      end_user_session_id,
+    ] = await Promise.all([
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('interaction_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('caller_sageo_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('callee_sageo_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('request_hash')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('response_hash')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('intent')),
+      this.readActorValue<number>(address, (b) => b.entity('interactions').at(index).field('status_code')),
+      this.readActorValue<number>(address, (b) => b.entity('interactions').at(index).field('timestamp')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('a2a_context_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('a2a_task_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('a2a_message_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('end_user_id')),
+      this.readActorValue<string>(address, (b) => b.entity('interactions').at(index).field('end_user_session_id')),
+    ]);
+
+    return this.parseRecord({
+      interaction_id,
+      caller_sageo_id,
+      callee_sageo_id,
+      request_hash,
+      response_hash,
+      intent,
+      status_code: this.toNumber(status_code),
+      timestamp: this.toNumber(timestamp),
+      a2a_context_id,
+      a2a_task_id,
+      a2a_message_id,
+      end_user_id,
+      end_user_session_id,
+    });
+  }
+
+  private async getActorInteractionById(
+    address: string,
+    interactionId: string
+  ): Promise<InteractionRecord | null> {
+    try {
+      const totalValue = await this.readActorValue<number>(
+        address,
+        (b) => b.entity('interactions').length()
+      );
+      const total = this.toNumber(totalValue);
+      for (let idx = 0; idx < total; idx += 1) {
+        const currentId = await this.readActorValue<string>(
+          address,
+          (b) => b.entity('interactions').at(idx).field('interaction_id')
+        );
+        if (currentId === interactionId) {
+          return this.readInteractionRecord(address, idx);
+        }
+      }
+      return null;
+    } catch (error) {
+      if (this.isStorageNotFound(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async getActorInteractions(
+    address: string,
+    limit: bigint,
+    offset: bigint
+  ): Promise<ListInteractionsOutput> {
+    try {
+      const totalValue = await this.readActorValue<number>(
+        address,
+        (b) => b.entity('interactions').length()
+      );
+      const total = this.toNumber(totalValue);
+      const offsetNum = Number(offset);
+      if (offsetNum >= total) {
+        return { records: [], total: BigInt(total) };
+      }
+      const count = Math.min(Number(limit), total - offsetNum);
+      const records: InteractionRecord[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const idx = total - offsetNum - 1 - i;
+        records.push(await this.readInteractionRecord(address, idx));
+      }
+      return { records, total: BigInt(total) };
+    } catch (error) {
+      if (this.isStorageNotFound(error)) {
+        return { records: [], total: 0n };
+      }
+      throw error;
+    }
+  }
+
   async enlist(sageoId: string): Promise<void> {
     const driver = this.ensureSigner();
 
@@ -108,23 +247,13 @@ export class SageoInteractionSDK {
         throw new TransactionError('Enlist returned null/undefined', undefined, new Error('Enlist returned null/undefined'));
       }
 
-      if (typeof (ix as any).wait === 'function') {
-        // Try direct wait pattern first
-        try {
-          await (ix as any).wait();
-        } catch (waitError) {
-          // If direct wait fails, try send pattern
-          if (typeof (ix as any).send === 'function') {
-            const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 1000 });
-            await result.wait();
-          } else {
-            throw waitError;
-          }
-        }
-      } else if (typeof (ix as any).send === 'function') {
-        // Send then wait pattern
+      if (typeof (ix as any).send === 'function') {
+        // Prefer send() for dynamic writes to ensure a transaction is submitted
         const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 1000 });
         await result.wait();
+      } else if (typeof (ix as any).wait === 'function') {
+        // Fallback: direct wait pattern
+        await (ix as any).wait();
       } else {
         throw new TransactionError('Enlist did not return a valid interaction object', undefined, new Error('Invalid interaction object'));
       }
@@ -167,23 +296,12 @@ export class SageoInteractionSDK {
         );
       }
 
-      if (typeof (ix as any).wait === 'function') {
-        // Try direct wait pattern first
-        try {
-          receipt = await (ix as any).wait();
-        } catch (waitError) {
-          // If direct wait fails, try send pattern
-          if (typeof (ix as any).send === 'function') {
-            const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 2000 });
-            receipt = await result.wait();
-          } else {
-            throw waitError;
-          }
-        }
-      } else if (typeof (ix as any).send === 'function') {
-        // Send then wait pattern
+      if (typeof (ix as any).send === 'function') {
+        // Prefer send() for dynamic writes to ensure a transaction is submitted
         const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 2000 });
         receipt = await result.wait();
+      } else if (typeof (ix as any).wait === 'function') {
+        receipt = await (ix as any).wait();
       } else {
         const errorDetails = `Type: ${typeof ix}, keys: ${Object.keys(ix || {}).join(', ')}, hasWait: ${typeof (ix as any).wait}, hasSend: ${typeof (ix as any).send}`;
         throw new TransactionError(
@@ -299,23 +417,12 @@ export class SageoInteractionSDK {
         );
       }
 
-      if (typeof (ix as any).wait === 'function') {
-        // Try direct wait pattern first
-        try {
-          await (ix as any).wait();
-        } catch (waitError) {
-          // If direct wait fails, try send pattern
-          if (typeof (ix as any).send === 'function') {
-            const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 2000 });
-            await result.wait();
-          } else {
-            throw waitError;
-          }
-        }
-      } else if (typeof (ix as any).send === 'function') {
-        // Send then wait pattern
+      if (typeof (ix as any).send === 'function') {
+        // Prefer send() for dynamic writes to ensure a transaction is submitted
         const result = await (ix as any).send({ fuelPrice: 1, fuelLimit: 2000 });
         await result.wait();
+      } else if (typeof (ix as any).wait === 'function') {
+        await (ix as any).wait();
       } else {
         const errorDetails = `Type: ${typeof ix}, keys: ${Object.keys(ix || {}).join(', ')}, hasWait: ${typeof (ix as any).wait}, hasSend: ${typeof (ix as any).send}`;
         throw new TransactionError(
@@ -349,15 +456,37 @@ export class SageoInteractionSDK {
       const record = (output as any)?.record;
       const found = Boolean((output as any)?.found);
 
-      return {
-        record: found ? this.parseRecord(record) : ({} as InteractionRecord),
-        found,
-      };
+      if (found) {
+        return {
+          record: this.parseRecord(record),
+          found,
+        };
+      }
+
+      if (this.readDriver.ephemeralState) {
+        const fallback = await this.getActorInteractionById(
+          normalizedIdentifier,
+          interactionId
+        );
+        if (fallback) {
+          return { record: fallback, found: true };
+        }
+      }
+
+      return { record: {} as InteractionRecord, found: false };
     } catch (error) {
-      throw new QueryError(
-        `Failed to get interaction: ${interactionId}`,
-        error
-      );
+      if (this.readDriver.ephemeralState) {
+        const normalizedIdentifier = normalizeIdentifier(agentIdentifier);
+        const fallback = await this.getActorInteractionById(
+          normalizedIdentifier,
+          interactionId
+        );
+        if (fallback) {
+          return { record: fallback, found: true };
+        }
+        return { record: {} as InteractionRecord, found: false };
+      }
+      throw new QueryError(`Failed to get interaction: ${interactionId}`, error);
     }
   }
 
@@ -383,11 +512,36 @@ export class SageoInteractionSDK {
         total: BigInt(total),
       };
     } catch (error) {
+      if (this.readDriver.ephemeralState) {
+        const normalizedIdentifier = normalizeIdentifier(input.agentIdentifier);
+        return this.getActorInteractions(
+          normalizedIdentifier,
+          input.limit,
+          input.offset
+        );
+      }
       throw new QueryError(
         `Failed to list interactions for: ${input.agentIdentifier}`,
         error
       );
     }
+  }
+
+  async listInteractionsByAgentFromState(
+    input: ListInteractionsInput
+  ): Promise<ListInteractionsOutput> {
+    const normalizedIdentifier = normalizeIdentifier(input.agentIdentifier);
+    if (!this.readDriver.ephemeralState) {
+      throw new QueryError(
+        `Ephemeral state not available for: ${input.agentIdentifier}`,
+        new Error('Interaction logic does not expose actor state')
+      );
+    }
+    return this.getActorInteractions(
+      normalizedIdentifier,
+      input.limit,
+      input.offset
+    );
   }
 
   async getAgentStats(agentIdentifier: string): Promise<GetStatsOutput> {

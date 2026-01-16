@@ -121,7 +121,8 @@ export class SageoClient {
 
   wrapA2AClient(
     a2aClient: A2AClient,
-    remoteAgentCard: AgentCard
+    remoteAgentCard: AgentCard,
+    remoteSageoId?: string
   ): SageoA2AClientWrapper {
     if (!this.initialized) {
       throw new Error(
@@ -133,7 +134,8 @@ export class SageoClient {
       a2aClient,
       this,
       remoteAgentCard,
-      this.mySageoId!
+      this.mySageoId!,
+      remoteSageoId
     );
   }
 

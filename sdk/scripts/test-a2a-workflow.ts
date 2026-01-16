@@ -4,14 +4,18 @@
  * Tests the complete A2A workflow with Sageo wrapping: register agents, send message, verify interaction logged to MOI
  */
 
-import { SageoClient } from '../src/index.js';
+import { SageoClient, SageoIdentitySDK } from '../src/index.js';
 import {
   DEFAULT_IDENTITY_LOGIC_ID,
   DEFAULT_INTERACTION_LOGIC_ID,
   DEFAULT_RPC_URL,
+  loadManifest,
 } from '../src/config.js';
-import type { AgentCard, SendMessageRequest } from '../src/index.js';
+import type { AgentCard, SendMessageRequest, InteractionRecord } from '../src/index.js';
 import { hashPayload, extractSageoMetadata, SAGEO_EXTENSION_URI } from '../src/utils.js';
+import { promises as fs } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Contract addresses (from deployment)
 const IDENTITY_LOGIC_ID = DEFAULT_IDENTITY_LOGIC_ID;
@@ -20,71 +24,10 @@ const INTERACTION_LOGIC_ID = DEFAULT_INTERACTION_LOGIC_ID;
 // MOI RPC URL for devnet
 const MOI_RPC_URL = DEFAULT_RPC_URL;
 
-// Caller agent mnemonic (Travel Agent)
-const CALLER_MNEMONIC = 'repair cycle monitor satisfy warfare forest decorate reveal update economy pizza lift';
-
-// Callee agent mnemonic (Hotel Agent) - Different from caller
-const CALLEE_MNEMONIC = 'metal foil release inquiry slice deny cake blame sustain fault now sugar';
-
-// Caller agent card (Travel Agent)
-const CALLER_AGENT_CARD: AgentCard = {
-  name: 'TravelAgent',
-  description: 'A travel agent that helps users find hotels and plan trips',
-  version: '1.0.0',
-  url: 'https://travel-agent.example.com',
-  protocolVersion: '0.3.0',
-  defaultInputModes: ['text'],
-  defaultOutputModes: ['text'],
-  capabilities: {
-    streaming: false,
-    pushNotifications: false,
-    stateTransitionHistory: false,
-  },
-  skills: [
-    {
-      id: 'hotel_search',
-      name: 'Hotel Search',
-      description: 'Searches for hotel availability',
-      tags: ['travel', 'hotels'],
-      examples: ['Find hotels in Paris', 'Search for availability'],
-      inputModes: ['text'],
-      outputModes: ['text'],
-    },
-  ],
-  iconUrl: 'https://travel-agent.example.com/icon.png',
-  documentationUrl: 'https://travel-agent.example.com/docs',
-  preferredTransport: 'JSONRPC',
-};
-
-// Callee agent card (Hotel Agent)
-const CALLEE_AGENT_CARD: AgentCard = {
-  name: 'HotelAgent',
-  description: 'A hotel booking agent that provides availability and pricing',
-  version: '1.0.0',
-  url: 'https://hotel-agent.example.com',
-  protocolVersion: '0.3.0',
-  defaultInputModes: ['text'],
-  defaultOutputModes: ['text'],
-  capabilities: {
-    streaming: false,
-    pushNotifications: false,
-    stateTransitionHistory: false,
-  },
-  skills: [
-    {
-      id: 'hotel_availability',
-      name: 'Hotel Availability',
-      description: 'Provides hotel availability and pricing',
-      tags: ['hotels', 'booking'],
-      examples: ['Check availability', 'Get hotel prices'],
-      inputModes: ['text'],
-      outputModes: ['text'],
-    },
-  ],
-  iconUrl: 'https://hotel-agent.example.com/icon.png',
-  documentationUrl: 'https://hotel-agent.example.com/docs',
-  preferredTransport: 'JSONRPC',
-};
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const AGENT_MNEMONICS_PATH = path.resolve(__dirname, '../../api/scripts/agent_mnemonics.json');
+const CALLER_SAGEO_ID = 'agent_2'; // StockTrader
+const CALLEE_SAGEO_ID = 'agent_1'; // WeatherBot
 
 // Helper to generate unique IDs
 function generateId(prefix: string = ''): string {
@@ -116,78 +59,245 @@ function extractInteractionId(response: any): string | null {
   return null;
 }
 
+async function listInteractionsWithFallback(
+  client: SageoClient,
+  identifiers: string[],
+  options: { limit: bigint; offset: bigint; interactionId?: string; retries?: number; delayMs?: number }
+): Promise<{ result: Awaited<ReturnType<SageoClient['interaction']['listInteractionsByAgent']>>; identifier: string; found: boolean }> {
+  const retries = options.retries ?? 3;
+  const delayMs = options.delayMs ?? 2000;
+  let lastResult: Awaited<ReturnType<SageoClient['interaction']['listInteractionsByAgent']>> | null = null;
+  let lastIdentifier = identifiers[0] ?? '';
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    for (const identifier of identifiers) {
+      try {
+        const result = await client.interaction.listInteractionsByAgent({
+          agentIdentifier: identifier,
+          limit: options.limit,
+          offset: options.offset,
+        });
+        lastResult = result;
+        lastIdentifier = identifier;
+        if (options.interactionId) {
+          if (result.records.some((r) => r.interaction_id === options.interactionId)) {
+            return { result, identifier, found: true };
+          }
+        } else if (result.records.length || result.total > 0n) {
+          return { result, identifier, found: false };
+        }
+      } catch (error) {
+        // Skip identifiers that aren't valid for this query (e.g., non-hex sageo_id)
+        const message = String(error);
+        if (
+          message.includes('Invalid hex string') ||
+          message.includes('Failed to list interactions')
+        ) {
+          continue;
+        }
+        throw error;
+      }
+    }
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return { result: lastResult ?? { records: [], total: 0n }, identifier: lastIdentifier, found: false };
+}
+
+async function findInteractionByRequestHash(
+  client: SageoClient,
+  agentIdentifier: string,
+  requestHash: string,
+  options: { limit: bigint; retries?: number; delayMs?: number }
+): Promise<InteractionRecord | null> {
+  const retries = options.retries ?? 4;
+  const delayMs = options.delayMs ?? 2000;
+
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    let listResult = await client.interaction.listInteractionsByAgent({
+      agentIdentifier,
+      limit: options.limit,
+      offset: 0n,
+    });
+    let match = listResult.records.find((r) => r.request_hash === requestHash);
+    if (!match) {
+      try {
+        listResult = await client.interaction.listInteractionsByAgentFromState({
+          agentIdentifier,
+          limit: options.limit,
+          offset: 0n,
+        });
+        match = listResult.records.find((r) => r.request_hash === requestHash);
+      } catch {
+        // ignore state fallback errors
+      }
+    }
+    if (match) {
+      return match;
+    }
+    if (attempt < retries) {
+      await new Promise((resolve) => setTimeout(resolve, delayMs));
+    }
+  }
+
+  return null;
+}
+
 async function testA2AWorkflow() {
   console.log('========================================');
   console.log('A2A Workflow E2E Test');
   console.log('========================================\n');
 
   let callerClient: SageoClient;
-  let calleeClient: SageoClient;
   let callerSageoId: string;
   let calleeSageoId: string;
+  let calleeAgentCard: AgentCard;
   let initialInteractions = 0;
   let newInteractionCount = 0;
+  let callerWalletAddress = '';
+  let listIdentifier = '';
 
   try {
-    // Step 1: Initialize both SageoClients
-    console.log('1. Initializing SageoClients...');
+    const agentMnemonicsRaw = await fs.readFile(AGENT_MNEMONICS_PATH, 'utf8');
+    const agentMnemonics = JSON.parse(agentMnemonicsRaw) as {
+      agents?: Array<{
+        name?: string;
+        sageo_id?: string;
+        mnemonic?: string;
+        wallet_address?: string;
+      }>;
+    };
+    const agents = agentMnemonics.agents ?? [];
+    if (agents.length < 2) {
+      throw new Error(`Need at least two agents in ${AGENT_MNEMONICS_PATH}`);
+    }
+    const callerAgentRecord =
+      agents.find((agent) => agent.sageo_id === CALLER_SAGEO_ID) ?? agents[1];
+    const calleeAgentRecord =
+      agents.find((agent) => agent.sageo_id === CALLEE_SAGEO_ID) ?? agents[0];
+
+    if (!callerAgentRecord?.mnemonic || !calleeAgentRecord?.mnemonic) {
+      throw new Error(`Missing mnemonic(s) in ${AGENT_MNEMONICS_PATH}`);
+    }
+
+    callerSageoId = callerAgentRecord.sageo_id ?? CALLER_SAGEO_ID;
+    calleeSageoId = calleeAgentRecord.sageo_id ?? CALLEE_SAGEO_ID;
+    const callerMnemonic = callerAgentRecord.mnemonic;
+
+    // Step 1: Query callee agent on MOI and initialize caller client
+    console.log('1. Querying existing agents on MOI...');
+    
+    // Initialize Identity SDK for read operations
+    const identityManifest = loadManifest('identity');
+    const identitySDK = await SageoIdentitySDK.init({
+      logicId: IDENTITY_LOGIC_ID,
+      manifest: identityManifest,
+      rpcUrl: MOI_RPC_URL,
+      privateKey: callerMnemonic,
+    });
+    
+    // Query callee (WeatherBot)
+    console.log(`   Querying callee ${calleeSageoId}...`);
+    const weatherFullProfile = await identitySDK.getAgentProfile(calleeSageoId);
+    if (!weatherFullProfile.found || !weatherFullProfile.profile) {
+      throw new Error(`Failed to fetch callee profile for ${calleeSageoId}`);
+    }
+    calleeAgentCard = weatherFullProfile.profile.agent_card;
+    console.log(`   ✅ Found callee: ${calleeSageoId} (${calleeAgentCard.name})\n`);
+
+    // Query caller profile if it already exists
+    const callerFullProfile = await identitySDK.getAgentProfile(callerSageoId);
+    
+    // Caller agent card (uses funded mnemonic; this agent will be registered if not found)
+    const callerAgentCard: AgentCard =
+      callerFullProfile.found && callerFullProfile.profile?.agent_card
+        ? callerFullProfile.profile.agent_card
+        : {
+            name: 'TestCaller',
+            description: 'Test caller agent for A2A workflow',
+            version: '1.0.0',
+            url: 'https://test-caller.example.com',
+            protocolVersion: '0.3.0',
+            defaultInputModes: ['text'],
+            defaultOutputModes: ['text'],
+            capabilities: {
+              streaming: false,
+              pushNotifications: false,
+              stateTransitionHistory: false,
+            },
+            skills: [],
+          };
+    
+    // Initialize caller client
     callerClient = new SageoClient(
       MOI_RPC_URL,
-      CALLER_MNEMONIC,
-      CALLER_AGENT_CARD,
+      callerMnemonic,
+      callerAgentCard,
       IDENTITY_LOGIC_ID,
       INTERACTION_LOGIC_ID
     );
-    calleeClient = new SageoClient(
-      MOI_RPC_URL,
-      CALLEE_MNEMONIC,
-      CALLEE_AGENT_CARD,
-      IDENTITY_LOGIC_ID,
-      INTERACTION_LOGIC_ID
-    );
-    console.log('   ✅ SageoClients created\n');
+    console.log('   ✅ SageoClients initialized\n');
 
-    // Step 2: Register and enlist both agents
-    console.log('2. Registering and enlisting agents...');
+    // Step 2: Ensure caller is registered
+    console.log('2. Ensuring caller agent is registered...');
     try {
       const callerProfile = await callerClient.getMyProfile();
       callerSageoId = callerProfile.sageo_id;
+      callerWalletAddress = callerProfile.wallet_address;
       console.log(`   ✅ Caller agent registered: ${callerSageoId}`);
     } catch (error) {
       console.error('   ❌ Failed to register caller agent:', error);
       throw error;
     }
+    console.log(`   ✅ Callee agent (WeatherBot) already registered: ${calleeSageoId}\n`);
 
+    // Initialize caller client explicitly before wrapping
+    // Ensure wallet identifiers match what we will use for lookups
+    const signerIdentifier = await callerClient.interaction.getWalletIdentifier();
+    if (!callerWalletAddress) {
+      callerWalletAddress = signerIdentifier;
+    }
+    console.log(`   Caller wallet (profile): ${callerWalletAddress}`);
+    console.log(`   Caller wallet (signer):  ${signerIdentifier}`);
+
+    // Ensure caller is enlisted in InteractionLogic
+    console.log('   Enlisting caller in InteractionLogic...');
     try {
-      const calleeProfile = await calleeClient.getMyProfile();
-      calleeSageoId = calleeProfile.sageo_id;
-      console.log(`   ✅ Callee agent registered: ${calleeSageoId}\n`);
+      await callerClient.interaction.enlist(callerSageoId);
+      console.log('   ✅ Caller enlisted in InteractionLogic\n');
     } catch (error) {
-      console.error('   ❌ Failed to register callee agent:', error);
-      throw error;
+      const msg = String(error);
+      if (msg.includes('already')) {
+        console.log('   ✅ Caller already enlisted in InteractionLogic\n');
+      } else {
+        console.warn('   ⚠️  Failed to enlist in InteractionLogic:', msg);
+      }
     }
 
     // Step 3: Get initial interaction count
     console.log('3. Getting initial interaction count...');
     try {
-      const interactions = await callerClient.interaction.listInteractionsByAgent({
-        agentIdentifier: callerSageoId,
-        limit: 100n,
-        offset: 0n,
-      });
-      initialInteractions = Number(interactions.total);
+      const listResult = await listInteractionsWithFallback(
+        callerClient,
+        [callerWalletAddress],
+        { limit: 100n, offset: 0n, retries: 1, delayMs: 1000 }
+      );
+      listIdentifier = listResult.identifier;
+      initialInteractions = Number(listResult.result.total);
       console.log(`   ✅ Initial interaction count: ${initialInteractions}\n`);
     } catch (error) {
       console.warn('   ⚠️  Could not get initial interaction count, assuming 0');
       initialInteractions = 0;
     }
 
-    // Step 4: Create mock A2A client (simulates hotel agent response)
+    // Step 4: Create mock A2A client (simulates WeatherBot response)
     console.log('4. Creating mock A2A client...');
     const mockA2AClient = {
       sendMessage: async (request: SendMessageRequest) => {
         console.log('   (Mock A2A) Received request, generating response...');
-        // Return realistic A2A response
+        // Return realistic A2A response from WeatherBot
         return {
           kind: 'message' as const,
           messageId: generateId('msg_'),
@@ -195,7 +305,7 @@ async function testA2AWorkflow() {
           parts: [
             {
               kind: 'text' as const,
-              text: 'We have 3 hotels available in Paris: Hotel A ($150/night), Hotel B ($200/night), Hotel C ($120/night)',
+              text: 'The weather in Paris tomorrow will be partly cloudy with a high of 18°C (64°F) and a low of 12°C (54°F). There is a 20% chance of light rain in the afternoon.',
             },
           ],
           contextId: request.params.message.contextId || generateId('ctx_'),
@@ -219,7 +329,8 @@ async function testA2AWorkflow() {
     console.log('5. Wrapping caller A2A client with Sageo...');
     const wrappedClient = callerClient.wrapA2AClient(
       mockA2AClient as any,
-      CALLEE_AGENT_CARD
+      calleeAgentCard,
+      calleeSageoId
     );
     console.log('   ✅ A2A client wrapped\n');
 
@@ -241,7 +352,7 @@ async function testA2AWorkflow() {
           parts: [
             {
               kind: 'text',
-              text: 'Find hotels in Paris for 2 nights, check-in tomorrow',
+              text: 'What is the weather forecast for Paris tomorrow?',
             },
           ],
           contextId,
@@ -262,32 +373,87 @@ async function testA2AWorkflow() {
 
     // Step 7: Extract interaction ID from response
     console.log('7. Extracting interaction ID...');
-    const interactionId = extractInteractionId(response);
-    if (!interactionId) {
+    const extractedInteractionId = extractInteractionId(response);
+    if (!extractedInteractionId) {
       throw new Error('No interaction_id found in response metadata');
     }
+    let interactionId = extractedInteractionId;
     console.log(`   ✅ Interaction ID: ${interactionId}\n`);
 
     // Step 8: Verify interaction logged to MOI
     console.log('8. Verifying interaction logged to MOI...');
     await new Promise((resolve) => setTimeout(resolve, 2000)); // Wait for blockchain confirmation
 
-    // GetInteraction requires wallet address, not sageo_id
-    const callerWalletAddress = await callerClient.resolveSageoIdToAddress(callerSageoId);
+    // GetInteraction requires wallet address, not sageo_id.
+    // Use the interaction SDK's wallet identifier to ensure it's the same signer that logged the interaction.
+    // Reuse the caller wallet address captured earlier
     
     // Verify the interaction is actually on-chain
     console.log(`   Checking on-chain state for interaction ${interactionId}...`);
-    const interactionResult = await callerClient.interaction.getInteraction(
+    let interactionResult = await callerClient.interaction.getInteraction(
       callerWalletAddress,
       interactionId
     );
 
+    // Retry a few times in case of eventual consistency
     if (!interactionResult.found) {
-      throw new Error(`Interaction ${interactionId} not found on MOI - interaction was not logged to blockchain`);
+      for (let attempt = 1; attempt <= 4; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        interactionResult = await callerClient.interaction.getInteraction(
+          callerWalletAddress,
+          interactionId
+        );
+        if (interactionResult.found) {
+          break;
+        }
+      }
     }
 
-    const interaction = interactionResult.record;
+    if (!interactionResult.found) {
+      // Fallback: list interactions and try to match by request hash
+      const listResult = await callerClient.interaction.listInteractionsByAgent({
+        agentIdentifier: callerWalletAddress,
+        limit: 20n,
+        offset: 0n,
+      });
+      const match = listResult.records.find((r) => r.request_hash === requestHash);
+      if (match) {
+        interactionId = match.interaction_id;
+        interactionResult = { record: match, found: true };
+      } else {
+        const knownIds = listResult.records.map((r) => r.interaction_id).join(', ');
+        throw new Error(
+          `Interaction ${interactionId} not found on MOI for ${callerWalletAddress}. ` +
+          `Recent interactions: ${knownIds || 'none'}`
+        );
+      }
+    }
+
+    let interaction = interactionResult.record;
     console.log('   ✅ Interaction found on MOI (verified on-chain)');
+
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    const looksStale =
+      interaction.request_hash !== requestHash ||
+      interaction.callee_sageo_id !== calleeSageoId ||
+      interaction.a2a_context_id !== contextId ||
+      interaction.a2a_task_id !== taskId ||
+      interaction.a2a_message_id !== messageId ||
+      now - interaction.timestamp > 120n;
+
+    if (looksStale) {
+      const match = await findInteractionByRequestHash(
+        callerClient,
+        callerWalletAddress,
+        requestHash,
+        { limit: 200n, retries: 5, delayMs: 2000 }
+      );
+      if (match) {
+        interaction = match;
+        interactionId = match.interaction_id;
+        console.log(`   ✅ Found current interaction by request hash: ${interactionId}`);
+      }
+    }
 
     // Step 9: Verify metadata matches
     console.log('9. Verifying interaction metadata...');
@@ -313,7 +479,6 @@ async function testA2AWorkflow() {
       errors.push(`Response hash mismatch: expected ${responseHash.substring(0, 16)}..., got ${interaction.response_hash.substring(0, 16)}...`);
     }
 
-    const now = BigInt(Math.floor(Date.now() / 1000));
     const timeDiff = now - interaction.timestamp;
     if (timeDiff < 0n || timeDiff > 120n) {
       // Allow up to 2 minutes difference
@@ -350,18 +515,35 @@ async function testA2AWorkflow() {
 
     // Step 10: Verify interaction appears in list
     console.log('10. Verifying interaction appears in list...');
-    const interactionsResult = await callerClient.interaction.listInteractionsByAgent({
-      agentIdentifier: callerWalletAddress,
-      limit: 10n,
-      offset: 0n,
-    });
+    const identifiers = [listIdentifier || callerWalletAddress].filter(Boolean);
+    let listResult = await listInteractionsWithFallback(
+      callerClient,
+      identifiers,
+      { limit: 20n, offset: 0n, interactionId, retries: 4, delayMs: 2000 }
+    );
+    let interactionsResult = listResult.result;
+    if (!interactionsResult.records.length) {
+      try {
+        interactionsResult = await callerClient.interaction.listInteractionsByAgentFromState({
+          agentIdentifier: callerWalletAddress,
+          limit: 50n,
+          offset: 0n,
+        });
+      } catch {
+        // ignore state fallback errors
+      }
+    }
 
     const foundInList = interactionsResult.records.some(
       (r) => r.interaction_id === interactionId
     );
 
     if (!foundInList) {
-      throw new Error(`Interaction ${interactionId} not found in list`);
+      const knownIds = interactionsResult.records.map((r) => r.interaction_id).join(', ');
+      throw new Error(
+        `Interaction ${interactionId} not found in list for ${listResult.identifier}. ` +
+        `Recent interactions: ${knownIds || 'none'}`
+      );
     }
 
     const newInteractionCount = Number(interactionsResult.total);

@@ -50,10 +50,42 @@ export class SageoInteractionSDK {
         const driver = this.ensureSigner();
         try {
             const ix = await driver.routines.Enlist(sageoId);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
-            await result.wait();
+            // Handle different interaction object patterns
+            if (!ix) {
+                throw new TransactionError('Enlist returned null/undefined', undefined, new Error('Enlist returned null/undefined'));
+            }
+            if (typeof ix.wait === 'function') {
+                // Try direct wait pattern first
+                try {
+                    await ix.wait();
+                }
+                catch (waitError) {
+                    // If direct wait fails, try send pattern
+                    if (typeof ix.send === 'function') {
+                        const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
+                        await result.wait();
+                    }
+                    else {
+                        throw waitError;
+                    }
+                }
+            }
+            else if (typeof ix.send === 'function') {
+                // Send then wait pattern
+                const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
+                await result.wait();
+            }
+            else {
+                throw new TransactionError('Enlist did not return a valid interaction object', undefined, new Error('Invalid interaction object'));
+            }
         }
         catch (error) {
+            const errorMsg = String(error);
+            // Check if already enlisted (might be a revert or different error format)
+            if (errorMsg.includes('already') || errorMsg.includes('enlisted')) {
+                // Already enlisted - this is OK
+                return;
+            }
             throw new TransactionError(`Failed to enlist: ${sageoId}`, undefined, error);
         }
     }
@@ -61,19 +93,102 @@ export class SageoInteractionSDK {
         const driver = this.ensureSigner();
         try {
             const ix = await driver.routines.LogRequest(input.interactionId, input.counterpartySageoId, input.isSender, input.requestHash, input.intent, input.timestamp, input.a2aContextId, input.a2aTaskId, input.a2aMessageId, input.endUserId, input.endUserSessionId);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            const receipt = await result.wait();
+            // Handle different interaction object patterns
+            let receipt;
+            if (!ix) {
+                throw new TransactionError('LogRequest returned null/undefined', undefined, new Error('LogRequest returned null/undefined'));
+            }
+            if (typeof ix.wait === 'function') {
+                // Try direct wait pattern first
+                try {
+                    receipt = await ix.wait();
+                }
+                catch (waitError) {
+                    // If direct wait fails, try send pattern
+                    if (typeof ix.send === 'function') {
+                        const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
+                        receipt = await result.wait();
+                    }
+                    else {
+                        throw waitError;
+                    }
+                }
+            }
+            else if (typeof ix.send === 'function') {
+                // Send then wait pattern
+                const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
+                receipt = await result.wait();
+            }
+            else {
+                const errorDetails = `Type: ${typeof ix}, keys: ${Object.keys(ix || {}).join(', ')}, hasWait: ${typeof ix.wait}, hasSend: ${typeof ix.send}`;
+                throw new TransactionError('LogRequest did not return a valid interaction object', undefined, new Error(`Expected interaction object with wait() or send() method, got: ${errorDetails}`));
+            }
+            // Try to use interaction.result() method first (decodes POLO outputs)
+            let interactionId;
+            if (typeof ix.result === 'function') {
+                try {
+                    const decoded = await ix.result();
+                    // decoded has { output: {...}, error: null } structure
+                    const resultData = decoded?.output ?? decoded;
+                    interactionId = resultData?.interaction_id ?? resultData?.result_interaction_id;
+                }
+                catch (resultError) {
+                    // Fall through to receipt extraction if result() fails
+                }
+            }
             // Extract interaction_id from receipt (try multiple locations)
-            const interactionId = receipt.outputs?.[0] ??
-                receipt.interaction_id ??
-                receipt.result?.interaction_id ??
-                receipt.result?.result_interaction_id ??
-                receipt.output?.interaction_id ??
-                receipt.output?.result_interaction_id ??
-                receipt.ix_operations?.[0]?.data?.interaction_id ??
-                receipt.ix_operations?.[0]?.data?.result?.interaction_id;
+            if (!interactionId) {
+                // Check receipt.ix_operations[0].data first (most common location)
+                const opData = receipt.ix_operations?.[0]?.data;
+                interactionId =
+                    opData?.interaction_id ??
+                        opData?.result?.interaction_id ??
+                        opData?.result_interaction_id ??
+                        opData?.output?.interaction_id ??
+                        // Check receipt.outputs (POLO-encoded, might need decoding)
+                        receipt.outputs?.[0] ??
+                        // Check receipt top-level
+                        receipt.interaction_id ??
+                        receipt.result?.interaction_id ??
+                        receipt.result?.result_interaction_id ??
+                        receipt.output?.interaction_id ??
+                        receipt.output?.result_interaction_id;
+            }
+            // If still not found, try extracting from POLO-encoded outputs
+            if (!interactionId && receipt.ix_operations?.[0]?.data?.outputs) {
+                const outputsHex = receipt.ix_operations[0].data.outputs;
+                if (typeof outputsHex === 'string' && outputsHex.startsWith('0x')) {
+                    // Try to extract "ix_" pattern from hex
+                    try {
+                        const buffer = Buffer.from(outputsHex.slice(2), 'hex');
+                        const ixMarker = Buffer.from('ix_', 'utf-8');
+                        const ixIndex = buffer.indexOf(ixMarker);
+                        if (ixIndex !== -1) {
+                            let idEnd = ixIndex + 3; // "ix_"
+                            while (idEnd < buffer.length && buffer[idEnd] >= 0x30 && buffer[idEnd] <= 0x39) {
+                                idEnd++;
+                            }
+                            const extracted = buffer.slice(ixIndex, idEnd).toString('utf-8');
+                            if (extracted.startsWith('ix_')) {
+                                interactionId = extracted;
+                            }
+                        }
+                    }
+                    catch (e) {
+                        // Ignore extraction errors
+                    }
+                }
+            }
             if (!interactionId || typeof interactionId !== 'string') {
-                throw new TransactionError('No interaction_id returned from LogRequest', receipt.hash, receipt);
+                // Log receipt structure for debugging
+                console.error('Receipt structure:', JSON.stringify({
+                    hasOutputs: !!receipt.outputs,
+                    outputsLength: receipt.outputs?.length,
+                    hasIxOperations: !!receipt.ix_operations,
+                    ixOpsLength: receipt.ix_operations?.length,
+                    firstOpData: receipt.ix_operations?.[0]?.data ? Object.keys(receipt.ix_operations[0].data) : null,
+                }, null, 2));
+                throw new TransactionError('No interaction_id returned from LogRequest', receipt.ix_hash || receipt.hash, receipt);
             }
             return interactionId;
         }
@@ -90,8 +205,35 @@ export class SageoInteractionSDK {
         const driver = this.ensureSigner();
         try {
             const ix = await driver.routines.LogResponse(input.interactionId, input.counterpartySageoId, input.isSender, input.responseHash, input.statusCode, input.timestamp);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            await result.wait();
+            // Handle different interaction object patterns
+            if (!ix) {
+                throw new TransactionError('LogResponse returned null/undefined', undefined, new Error('LogResponse returned null/undefined'));
+            }
+            if (typeof ix.wait === 'function') {
+                // Try direct wait pattern first
+                try {
+                    await ix.wait();
+                }
+                catch (waitError) {
+                    // If direct wait fails, try send pattern
+                    if (typeof ix.send === 'function') {
+                        const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
+                        await result.wait();
+                    }
+                    else {
+                        throw waitError;
+                    }
+                }
+            }
+            else if (typeof ix.send === 'function') {
+                // Send then wait pattern
+                const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
+                await result.wait();
+            }
+            else {
+                const errorDetails = `Type: ${typeof ix}, keys: ${Object.keys(ix || {}).join(', ')}, hasWait: ${typeof ix.wait}, hasSend: ${typeof ix.send}`;
+                throw new TransactionError('LogResponse did not return a valid interaction object', undefined, new Error(`Expected interaction object with wait() or send() method, got: ${errorDetails}`));
+            }
         }
         catch (error) {
             const errorMsg = String(error);

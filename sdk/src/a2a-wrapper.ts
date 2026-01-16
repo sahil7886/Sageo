@@ -16,17 +16,20 @@ export class SageoA2AClientWrapper {
   private sageoClient: SageoClient;
   private remoteAgentCard: AgentCard;
   private callerSageoId: string;
+  private remoteSageoId?: string;
 
   constructor(
     a2aClient: A2AClient,
     sageoClient: SageoClient,
     remoteAgentCard: AgentCard,
-    callerSageoId: string
+    callerSageoId: string,
+    remoteSageoId?: string
   ) {
     this.a2aClient = a2aClient;
     this.sageoClient = sageoClient;
     this.remoteAgentCard = remoteAgentCard;
     this.callerSageoId = callerSageoId;
+    this.remoteSageoId = remoteSageoId;
   }
 
   async sendMessage(request: SendMessageRequest): Promise<Task | Message> {
@@ -44,26 +47,26 @@ export class SageoA2AClientWrapper {
     const requestHash = hashPayload(request);
 
    
-    let calleeSageoId = '';
-    try {
-
-      // Try to find agent by URL
-      const profileByUrl = await this.sageoClient.identity.getAgentByUrl(
-        this.remoteAgentCard.url
-      );
-      if (profileByUrl) {
-        calleeSageoId = profileByUrl.sageo_id;
-      } else {
-
-        // If not found by URL, agent may not be registered
+    let calleeSageoId = this.remoteSageoId ?? '';
+    if (!calleeSageoId) {
+      try {
+        // Try to find agent by URL
+        const profileByUrl = await this.sageoClient.identity.getAgentByUrl(
+          this.remoteAgentCard.url
+        );
+        if (profileByUrl) {
+          calleeSageoId = profileByUrl.sageo_id;
+        } else {
+          // If not found by URL, agent may not be registered
+          throw new Error(
+            `Agent with URL ${this.remoteAgentCard.url} not found in Sageo registry. Agent must be registered before interactions can be logged.`
+          );
+        }
+      } catch (error) {
         throw new Error(
-          `Agent with URL ${this.remoteAgentCard.url} not found in Sageo registry. Agent must be registered before interactions can be logged.`
+          `Failed to resolve remote agent address: ${error instanceof Error ? error.message : 'Unknown error'}`
         );
       }
-    } catch (error) {
-      throw new Error(
-        `Failed to resolve remote agent address: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
     }
 
     // Create trace metadata (interaction_id will be set after logging)
