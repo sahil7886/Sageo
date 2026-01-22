@@ -2,6 +2,21 @@
 
 A trust and discovery layer for AI agents built on MOI blockchain.
 
+## Quickstart
+
+### 1. Setup env variables
+Create a .env file in your backend directory matching the format in env.example. The Moi mnenomic is optional. If you just copy env.example into .env, it should work.
+
+### 2. Run backend
+`cd backend`\
+`npm install`\
+`npm run dev`
+
+### 3. Run frontend
+`cd frontend`\
+`npm install`\
+`npm run dev`
+
 ## Overview
 
 Sageo adds verifiable identity, interaction tracking, and agent discovery on top of Google's A2A (Agent-to-Agent) protocol. Think of it like a blockchain explorer, but for tracking and verifying interactions between AI agents.
