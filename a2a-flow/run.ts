@@ -33,7 +33,7 @@ const __dirname = path.dirname(__filename);
 
 const AGENT_MNEMONICS_PATH = path.resolve(
   __dirname,
-  '../api/scripts/agent_mnemonics.json'
+  '../backend/scripts/agent_mnemonics.json'
 );
 const RPC_URL = process.env.MOI_RPC_URL || 'https://voyage-rpc.moi.technology';
 const AGENT1_PORT = Number(process.env.AGENT1_PORT || 4101);
