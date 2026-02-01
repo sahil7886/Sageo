@@ -26,6 +26,10 @@ export default defineConfig(({ mode }) => {
             target: 'http://localhost:3001',
             changeOrigin: true,
           },
+          '/demo': {
+            target: 'http://localhost:3001',
+            changeOrigin: true,
+          },
         },
       },
       plugins: [react()],

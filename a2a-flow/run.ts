@@ -42,6 +42,7 @@ const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001';
 const USER_MESSAGE =
   process.env.USER_MESSAGE ||
   'Plan a trip to Tokyo and ask StockTrader for NVDA sentiment.';
+const RUN_DEMO = process.env.RUN_DEMO === 'true';
 
 type StoredAgent = {
   name: string;
@@ -127,6 +128,10 @@ function formatResponse(result: Message | Task): string {
   return extractFirstText(message) || '[empty response]';
 }
 
+function stripStockTraderPrefix(text: string): string {
+  return text.replace(/^StockTrader analysis for\s+\"[^\"]*\"\s*:\s*/i, '').trim();
+}
+
 async function startAgentServer(
   label: string,
   agentCard: AgentCard,
@@ -170,7 +175,7 @@ class StockTraderExecutor implements AgentExecutor {
       parts: [
         {
           kind: 'text',
-          text: `StockTrader analysis for "${question}": NVDA looks stable; outlook neutral.`,
+          text: 'Outdoor gear demand typically rises with mild spring/summer forecasts; sector outlook neutral.',
         },
       ],
       contextId: requestContext.contextId,
@@ -211,6 +216,7 @@ class WeatherBotExecutor implements AgentExecutor {
     console.log('➡️ WeatherBot calling StockTrader via SageoClient wrapper...');
     const agent2Response = await this.agent2Client.sendMessage(agent2Params);
     const stockSummary = formatResponse(agent2Response);
+    const cleanedStockSummary = stripStockTraderPrefix(stockSummary);
 
     const response: Message = {
       kind: 'message',
@@ -219,7 +225,9 @@ class WeatherBotExecutor implements AgentExecutor {
       parts: [
         {
           kind: 'text',
-          text: `WeatherBot response for "${userQuestion}".\nStockTrader says: ${stockSummary}`,
+          text: cleanedStockSummary
+            ? `The next 10-day forecast is mostly mild and dry with a brief shower midweek, which should support outdoor activity and near-term equipment demand. Stock context: ${cleanedStockSummary}`
+            : 'The next 10-day forecast is mostly mild and dry with a brief shower midweek, which should support outdoor activity and near-term equipment demand.',
         },
       ],
       contextId: requestContext.contextId,
@@ -300,54 +308,68 @@ async function main() {
     AGENT1_PORT
   );
 
-  console.log('\n👤 End user sending message to WeatherBot...');
-  const userClient = await clientFactory.createFromUrl(
-    `http://localhost:${AGENT1_PORT}`
-  );
-  const contextId = uuidv4();
-  const userParams: MessageSendParams = {
-    message: {
-      kind: 'message',
-      messageId: uuidv4(),
-      role: 'user',
-      parts: [{ kind: 'text', text: USER_MESSAGE }],
-      contextId,
-    },
-  };
+  // If RUN_DEMO mode, run the full automated demo flow
+  if (RUN_DEMO) {
+    console.log('\n👤 End user sending message to WeatherBot...');
+    const userClient = await clientFactory.createFromUrl(
+      `http://localhost:${AGENT1_PORT}`
+    );
+    const contextId = uuidv4();
+    const userParams: MessageSendParams = {
+      message: {
+        kind: 'message',
+        messageId: uuidv4(),
+        role: 'user',
+        parts: [{ kind: 'text', text: USER_MESSAGE }],
+        contextId,
+      },
+    };
 
-  const response = await userClient.sendMessage(userParams);
-  console.log('✅ End user received response:');
-  console.log(formatResponse(response));
+    const response = await userClient.sendMessage(userParams);
+    console.log('✅ End user received response:');
+    console.log(formatResponse(response));
 
-  await new Promise<void>((resolve) => setTimeout(resolve, 1000));
+    await new Promise<void>((resolve) => setTimeout(resolve, 1000));
 
-  console.log('\n🔎 Fetching latest interactions...');
-  const [agent1Interactions, agent2Interactions] = await Promise.all([
-    fetch(`${API_BASE_URL}/agents/${agent1Profile.sageo_id}/interactions?limit=2&offset=0`)
-      .then((res) => res.json())
-      .catch(() => ({ interactions: [] })),
-    fetch(`${API_BASE_URL}/agents/${agent2Profile.sageo_id}/interactions?limit=1&offset=0`)
-      .then((res) => res.json())
-      .catch(() => ({ interactions: [] })),
-  ]);
+    console.log('\n🔎 Fetching latest interactions...');
+    const [agent1Interactions, agent2Interactions] = await Promise.all([
+      fetch(`${API_BASE_URL}/agents/${agent1Profile.sageo_id}/interactions?limit=2&offset=0`)
+        .then((res) => res.json())
+        .catch(() => ({ interactions: [] })),
+      fetch(`${API_BASE_URL}/agents/${agent2Profile.sageo_id}/interactions?limit=1&offset=0`)
+        .then((res) => res.json())
+        .catch(() => ({ interactions: [] })),
+    ]);
 
-  const agent1Latest = Array.isArray(agent1Interactions?.interactions)
-    ? agent1Interactions.interactions
-    : [];
-  const agent2Latest = Array.isArray(agent2Interactions?.interactions)
-    ? agent2Interactions.interactions
-    : [];
+    const agent1Latest = Array.isArray(agent1Interactions?.interactions)
+      ? agent1Interactions.interactions
+      : [];
+    const agent2Latest = Array.isArray(agent2Interactions?.interactions)
+      ? agent2Interactions.interactions
+      : [];
 
-  console.log('\nLatest agent_1 interactions:');
-  console.log(JSON.stringify(agent1Latest, null, 2));
-  console.log('\nLatest agent_2 interactions:');
-  console.log(JSON.stringify(agent2Latest, null, 2));
+    console.log('\nLatest agent_1 interactions:');
+    console.log(JSON.stringify(agent1Latest, null, 2));
+    console.log('\nLatest agent_2 interactions:');
+    console.log(JSON.stringify(agent2Latest, null, 2));
 
-  console.log('\n🧹 Shutting down servers...');
-  await Promise.all([
-    new Promise<void>((resolve) => weatherServer.close(() => resolve())),
-    new Promise<void>((resolve) => stockServer.close(() => resolve())),
-  ]);
+    console.log('\n🧹 Shutting down servers...');
+    await Promise.all([
+      new Promise<void>((resolve) => weatherServer.close(() => resolve())),
+      new Promise<void>((resolve) => stockServer.close(() => resolve())),
+    ]);
+    return;
+  }
+
+  // Default behavior: keep servers running and wait for external requests
+  console.log('\n✅ Servers running and waiting for requests');
+  console.log('   WeatherBot: http://localhost:' + AGENT1_PORT);
+  console.log('   StockTrader: http://localhost:' + AGENT2_PORT);
+  console.log('   Use RUN_DEMO=true to run automated demo flow');
+  console.log('   Press Ctrl+C to stop');
+  
+  // Keep process alive
+  await new Promise(() => {});
 }
 
 main().catch((error) => {

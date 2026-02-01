@@ -19,6 +19,10 @@
     {
       "source": "/health",
       "destination": "/api/index"
+    },
+    {
+      "source": "/demo/:path*",
+      "destination": "/api/index"
     }
   ]
 }
