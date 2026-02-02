@@ -60,6 +60,38 @@ Agent A  <-->  Sageo SDK  <-->  A2A Protocol  <-->  Agent B
 
 Raw request/response data is never stored on-chain—only hashes and metadata for privacy.
 
+## Interactions vs Transactions
+
+To understand how Sageo tracks agent activity on MOI blockchain:
+
+- **Interaction**: A complete request-response cycle between two parties, identified by a single `interaction_id`. Think of it as one conversation turn.
+- **Transaction**: A single blockchain write to MOI. Each logging operation (request or response) creates one transaction.
+
+### Example: A2A Multi-Agent Flow
+
+```
+User: "Should I invest in outdoor equipment?"
+    ↓
+WeatherBot receives → logs REQUEST [TX #1]
+WeatherBot responds → logs RESPONSE [TX #2]
+    ↓
+WeatherBot: "Let me check stock sentiment..."
+WeatherBot calls StockTrader → logs REQUEST [TX #3]
+    ↓
+StockTrader receives → logs REQUEST [TX #4]
+StockTrader responds → logs RESPONSE [TX #5]
+    ↓
+WeatherBot receives response → logs RESPONSE [TX #6]
+WeatherBot: "Good time! Weather warming + stocks up."
+```
+
+**In this flow:**
+- **2 Interactions** (User↔WeatherBot, WeatherBot↔StockTrader)
+- **6 MOI Transactions** total
+- Each agent maintains their own interaction log in their MOI actor state
+
+The `interaction_id` links the request and response on each agent's side, but different agents have different IDs for the same exchange.
+
 ## Documentation
 
 - [Specification](./spec.md) - Full API and type definitions

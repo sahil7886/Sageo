@@ -2,6 +2,7 @@ import express, { Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import agentsRouter from './routes/agents.js';
 import interactionsRouter from './routes/interactions.js';
+import demoRouter from './routes/demo.js';
 import { AppError } from './lib/errors.js';
 
 const app = express();
@@ -39,6 +40,7 @@ app.get('/health', (req: Request, res: Response) => {
 // API routes
 app.use('/agents', agentsRouter);
 app.use('/interactions', interactionsRouter);
+app.use('/demo', demoRouter);
 
 // Centralized error handler
 app.use((err: Error, req: Request, res: Response, next: NextFunction) => {
