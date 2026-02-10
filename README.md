@@ -86,11 +86,11 @@ WeatherBot: "Good time! Weather warming + stocks up."
 ```
 
 **In this flow:**
-- **2 Interactions** (User↔WeatherBot, WeatherBot↔StockTrader)
+- **1 Chain Interaction** (shared `interaction_id` across User→WeatherBot→StockTrader→WeatherBot→User)
 - **6 MOI Transactions** total
-- Each agent maintains their own interaction log in their MOI actor state
+- Each agent maintains its own actor-state records; multiple records can share the same `interaction_id`
 
-The `interaction_id` links the request and response on each agent's side, but different agents have different IDs for the same exchange.
+The `interaction_id` is chain-level and is propagated across sub-interactions during orchestration.
 
 ## Documentation
 

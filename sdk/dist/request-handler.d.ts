@@ -5,6 +5,7 @@ type StreamEvent = Message | Task | TaskStatusUpdateEvent | TaskArtifactUpdateEv
 export declare class SageoRequestHandler implements A2ARequestHandler {
     private underlying;
     private sageoClient;
+    private logTimeoutMs;
     constructor(underlying: A2ARequestHandler, sageoClient: SageoClient);
     getAgentCard(): Promise<AgentCard>;
     getAuthenticatedExtendedAgentCard(context?: ServerCallContext): Promise<AgentCard>;
@@ -22,6 +23,9 @@ export declare class SageoRequestHandler implements A2ARequestHandler {
     private sanitizeMessage;
     private logIncomingRequest;
     private logResponse;
+    private buildFallbackTrace;
+    private injectTraceMetadata;
+    private runWithTimeout;
 }
 export {};
 //# sourceMappingURL=request-handler.d.ts.map

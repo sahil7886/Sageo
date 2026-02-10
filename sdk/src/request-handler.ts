@@ -60,8 +60,8 @@ export class SageoRequestHandler implements A2ARequestHandler {
       this.logIncomingRequest(trace, params),
       'incoming request'
     );
-    if (!trace.interaction_id && loggedInteractionId) {
-      trace.interaction_id = loggedInteractionId;
+    if (!trace.interaction_id && loggedInteractionId?.interactionId) {
+      trace.interaction_id = loggedInteractionId.interactionId;
       this.injectTraceMetadata(params.message, trace);
     }
 
@@ -99,8 +99,8 @@ export class SageoRequestHandler implements A2ARequestHandler {
       this.logIncomingRequest(trace, params),
       'incoming request'
     );
-    if (!trace.interaction_id && loggedInteractionId) {
-      trace.interaction_id = loggedInteractionId;
+    if (!trace.interaction_id && loggedInteractionId?.interactionId) {
+      trace.interaction_id = loggedInteractionId.interactionId;
       this.injectTraceMetadata(params.message, trace);
     }
 
@@ -211,7 +211,7 @@ export class SageoRequestHandler implements A2ARequestHandler {
   private async logIncomingRequest(
     trace: SageoTraceMetadata,
     params: MessageSendParams
-  ): Promise<string | null> {
+  ): Promise<{ interactionId: string; txHash: string; timestamp: number } | null> {
     if (!trace.caller_sageo_id) {
       return null;
     }
@@ -223,7 +223,7 @@ export class SageoRequestHandler implements A2ARequestHandler {
     const message = params.message;
 
     try {
-      const interactionId = await this.sageoClient.interaction.logRequest({
+      const loggedRequest = await this.sageoClient.interaction.logRequestWithTx({
         interactionId: trace.interaction_id || '',
         counterpartySageoId: trace.caller_sageo_id,
         isSender: false,
@@ -236,7 +236,27 @@ export class SageoRequestHandler implements A2ARequestHandler {
         endUserId: trace.end_user?.id ?? '',
         endUserSessionId: trace.end_user?.session_id ?? '',
       });
-      return interactionId;
+      if (loggedRequest.txHash) {
+        await this.sageoClient.reportInteractionTxEvent({
+          interaction_id: loggedRequest.interactionId,
+          tx_hash: loggedRequest.txHash,
+          event_type: 'request',
+          is_sender: false,
+          actor_sageo_id: this.sageoClient.mySageoIdValue || '',
+          counterparty_sageo_id: trace.caller_sageo_id,
+          a2a_context_id: trace.a2a?.contextId ?? message.contextId ?? undefined,
+          a2a_task_id: trace.a2a?.taskId ?? message.taskId ?? undefined,
+          a2a_message_id: trace.a2a?.messageId ?? message.messageId ?? undefined,
+          end_user_id: trace.end_user?.id ?? undefined,
+          end_user_session_id: trace.end_user?.session_id ?? undefined,
+          timestamp: Number(timestamp),
+        });
+      }
+      return {
+        interactionId: loggedRequest.interactionId,
+        txHash: loggedRequest.txHash,
+        timestamp: Number(timestamp),
+      };
     } catch (error) {
       console.warn('Failed to log Sageo request on server:', error);
     }
@@ -258,7 +278,7 @@ export class SageoRequestHandler implements A2ARequestHandler {
     const responseHash = hashPayload(payload);
 
     try {
-      await this.sageoClient.interaction.logResponse({
+      const loggedResponse = await this.sageoClient.interaction.logResponseWithTx({
         interactionId: trace.interaction_id,
         counterpartySageoId: trace.caller_sageo_id,
         isSender: true,
@@ -266,6 +286,23 @@ export class SageoRequestHandler implements A2ARequestHandler {
         statusCode,
         timestamp,
       });
+      if (loggedResponse.txHash) {
+        await this.sageoClient.reportInteractionTxEvent({
+          interaction_id: trace.interaction_id,
+          tx_hash: loggedResponse.txHash,
+          event_type: 'response',
+          is_sender: true,
+          actor_sageo_id: this.sageoClient.mySageoIdValue || '',
+          counterparty_sageo_id: trace.caller_sageo_id,
+          a2a_context_id: trace.a2a?.contextId ?? undefined,
+          a2a_task_id: trace.a2a?.taskId ?? undefined,
+          a2a_message_id: trace.a2a?.messageId ?? undefined,
+          end_user_id: trace.end_user?.id ?? undefined,
+          end_user_session_id: trace.end_user?.session_id ?? undefined,
+          status_code: Number(statusCode),
+          timestamp: Number(timestamp),
+        });
+      }
     } catch (error) {
       console.warn('Failed to log Sageo response on server:', error);
     }
@@ -282,15 +319,16 @@ export class SageoRequestHandler implements A2ARequestHandler {
     const taskId = message.taskId || '';
     const userName = context?.user?.userName || '';
     const callerId = userName ? `external_${userName}` : `external_${contextId}`;
-    const endUserId = 'user_1';
-    const endUserSessionId = 'session_1';
+    const defaultEndUser = this.sageoClient.getDefaultEndUserContext();
+    const endUserId = defaultEndUser?.id || userName || '';
+    const endUserSessionId = defaultEndUser?.session_id || '';
 
     return {
       conversation_id: contextId,
       interaction_id: '',
       caller_sageo_id: callerId,
       callee_sageo_id: this.sageoClient.mySageoIdValue || '',
-      end_user: { id: endUserId, session_id: endUserSessionId },
+      end_user: endUserId ? { id: endUserId, session_id: endUserSessionId } : undefined,
       a2a: {
         contextId,
         taskId,

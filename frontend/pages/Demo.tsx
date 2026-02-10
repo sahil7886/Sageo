@@ -8,6 +8,7 @@ const AGENT_NAME = "WeatherBot";
 const AGENT_AVATAR = "🌤️";
 const AGENT_SAGEO_ID = "agent_1";
 const DEFAULT_PROMPT = "Should I invest in outdoor equipment?";
+const MIN_CONNECTING_DISPLAY_MS = 1200;
 
 interface Message {
   id: string;
@@ -21,12 +22,21 @@ interface Message {
 const Demo = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState(DEFAULT_PROMPT);
+  const [endUserId, setEndUserId] = useState('demo_user_1');
   const [isProcessing, setIsProcessing] = useState(false);
   const [agentsReady, setAgentsReady] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  const ensureMinimumLoadingDisplay = async (loadingStartMs: number) => {
+    const elapsedMs = Date.now() - loadingStartMs;
+    const remainingMs = MIN_CONNECTING_DISPLAY_MS - elapsedMs;
+    if (remainingMs > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, remainingMs));
+    }
+  };
 
   // Auto-scroll to bottom
   useEffect(() => {
@@ -83,13 +93,17 @@ const Demo = () => {
     };
 
     setMessages(prev => [...prev, loadingMessage]);
+    const loadingStartedAt = Date.now();
 
     try {
       // Send to real WeatherBot agent
       const res = await fetch(`${API_BASE_URL}/demo/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userMessage.content })
+        body: JSON.stringify({
+          message: userMessage.content,
+          endUserId: endUserId.trim() || 'demo_user_1',
+        })
       });
 
       if (!res.ok) {
@@ -98,6 +112,7 @@ const Demo = () => {
       }
 
       const data = await res.json();
+      await ensureMinimumLoadingDisplay(loadingStartedAt);
 
       // Remove loading and add real response
       const agentResponse: Message = {
@@ -112,6 +127,7 @@ const Demo = () => {
         prev.filter(m => !m.isLoading).concat(agentResponse)
       );
     } catch (err) {
+      await ensureMinimumLoadingDisplay(loadingStartedAt);
       setMessages(prev => prev.filter(m => !m.isLoading));
       setError(err instanceof Error ? err.message : 'Failed to get response');
     } finally {
@@ -129,6 +145,7 @@ const Demo = () => {
   const handleReset = () => {
     setMessages([]);
     setInputValue(DEFAULT_PROMPT);
+    setEndUserId('demo_user_1');
     setError(null);
   };
 
@@ -301,6 +318,14 @@ const Demo = () => {
       {/* Input */}
       <footer className="border-t border-gray-100 bg-white p-4">
         <div className="max-w-3xl mx-auto">
+          <div className="grid grid-cols-1 gap-2 mb-3">
+            <input
+              value={endUserId}
+              onChange={(e) => setEndUserId(e.target.value)}
+              placeholder="End user ID (required)"
+              className="h-10 rounded-lg border border-gray-200 px-3 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-[#17a1cf] focus:ring-2 focus:ring-[#17a1cf]/20"
+            />
+          </div>
           <div className="relative flex items-center gap-2 bg-gray-50 rounded-2xl border border-gray-200 focus-within:border-[#17a1cf] focus-within:ring-2 focus-within:ring-[#17a1cf]/20 transition-all">
             <textarea
               ref={inputRef}

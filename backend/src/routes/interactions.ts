@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { ApiError } from '../lib/errors';
 import { getAgentWalletAddress, getFirstAgentWalletAddress, normalizeAgentIdentifier } from '../lib/agent-mnemonics.js';
 import { getActorInteractionById, getActorInteractions } from '../lib/interaction-state.js';
+import { listInteractionTxEvents, storeInteractionTxEvent } from '../lib/interaction-tx-store.js';
 
 const router = Router();
 
@@ -23,6 +24,41 @@ router.get('/recent', async (req, res, next) => {
 
     const { interactions } = await getActorInteractions(address, limit, 0);
     res.json({ interactions });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * POST /interactions/tx-events
+ * Ingest tx mapping events emitted by SDK logging hooks.
+ */
+router.post('/tx-events', async (req, res, next) => {
+  try {
+    storeInteractionTxEvent(req.body ?? {});
+    res.status(201).json({ ok: true });
+  } catch (error) {
+    next(new ApiError(
+      400,
+      'VALIDATION_ERROR',
+      error instanceof Error ? error.message : 'Invalid tx event payload'
+    ));
+  }
+});
+
+/**
+ * GET /interactions/:interaction_id/transactions
+ * Get tx hashes linked to an interaction_id.
+ */
+router.get('/:interaction_id/transactions', async (req, res, next) => {
+  try {
+    const { interaction_id } = req.params;
+    const transactions = listInteractionTxEvents(interaction_id);
+    res.json({
+      interaction_id,
+      total: transactions.length,
+      transactions,
+    });
   } catch (error) {
     next(error);
   }

@@ -62,7 +62,7 @@ endpoint dynamic Enlist(sageo_id String):
 
 // Logs an interaction request (sent or received)
 // If interaction_id is empty, generates a new one (first call by initiator)
-// If interaction_id is provided, uses that ID (subsequent calls by receiver)
+// If interaction_id is provided, uses that ID (subsequent calls in the same chain)
 endpoint dynamic LogRequest(
     interaction_id String,
     counterparty_sageo_id String,
@@ -162,14 +162,27 @@ endpoint dynamic LogResponse(
             throw "Agent not enlisted"
         my_sageo_id = agent_id
 
-    // Find and update the interaction record
+    // Find and update the matching pending interaction record.
+    // Multiple records may share the same interaction_id in multi-hop orchestration,
+    // so we also match by counterparty and only update one unresolved record.
     memory was_found Bool = false
     mutate interactions <- SageoInteractionLogic.Sender.interactions:
         for i in range(len(interactions)):
-            if interactions[i].interaction_id == interaction_id:
-                interactions[i].response_hash = response_hash
-                interactions[i].status_code = status_code
-                was_found = true
+            if !was_found:
+                if interactions[i].interaction_id == interaction_id:
+                    if interactions[i].response_hash == "":
+                        memory is_counterparty_match Bool = false
+                        if interactions[i].caller_sageo_id == counterparty_sageo_id:
+                            if interactions[i].callee_sageo_id == my_sageo_id:
+                                is_counterparty_match = true
+                        if interactions[i].caller_sageo_id == my_sageo_id:
+                            if interactions[i].callee_sageo_id == counterparty_sageo_id:
+                                is_counterparty_match = true
+
+                        if is_counterparty_match:
+                            interactions[i].response_hash = response_hash
+                            interactions[i].status_code = status_code
+                            was_found = true
     
     if !was_found:
         throw "Interaction not found in state"

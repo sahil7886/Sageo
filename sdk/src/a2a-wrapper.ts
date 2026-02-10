@@ -7,7 +7,7 @@ import type {
 } from '@a2a-js/sdk';
 import type { A2AClient } from './types.js';
 import { SageoClient } from './sageo-client.js';
-import { hashPayload, extractIntent } from './utils.js';
+import { hashPayload, extractIntent, extractSageoMetadata } from './utils.js';
 import { SAGEO_EXTENSION_URI } from './config.js';
 import type { SageoTraceMetadata } from './types.js';
 
@@ -44,6 +44,7 @@ export class SageoA2AClientWrapper {
 
     // Extract A2A metadata from message params
     const message = params.message;
+    const existingTrace = extractSageoMetadata(message);
     const contextId = message.contextId || '';
     const taskId = message.taskId || '';
     const messageId = message.messageId || '';
@@ -81,17 +82,18 @@ export class SageoA2AClientWrapper {
 
     // Create trace metadata (interaction_id will be set after logging)
     const traceMetadata: SageoTraceMetadata = {
-      conversation_id: contextId,
-      interaction_id: '',
+      conversation_id: existingTrace?.conversation_id || contextId,
+      interaction_id: existingTrace?.interaction_id || '',
       caller_sageo_id: this.callerSageoId,
       callee_sageo_id: calleeSageoId,
+      end_user: existingTrace?.end_user || this.sageoClient.getDefaultEndUserContext(),
       a2a: {
-        contextId,
-        taskId,
-        messageId,
+        contextId: existingTrace?.a2a?.contextId || contextId,
+        taskId: existingTrace?.a2a?.taskId || taskId,
+        messageId: existingTrace?.a2a?.messageId || messageId,
         method: 'message/send',
       },
-      intent,
+      intent: existingTrace?.intent || intent,
       a2a_client_timestamp_ms: Date.now(),
     };
 
@@ -101,14 +103,15 @@ export class SageoA2AClientWrapper {
     // Log request to InteractionLogic BEFORE sending
     let interactionId: string | null = null;
     try {
-      interactionId = await this.runWithTimeout(
-        this.sageoClient.interaction.logRequest({
-          interactionId: '',
+      const requestTimestamp = BigInt(Math.floor(Date.now() / 1000));
+      const loggedRequest = await this.runWithTimeout(
+        this.sageoClient.interaction.logRequestWithTx({
+          interactionId: traceMetadata.interaction_id || '',
           counterpartySageoId: calleeSageoId,
           isSender: true,
           requestHash,
-          intent,
-          timestamp: BigInt(Math.floor(Date.now() / 1000)),
+          intent: traceMetadata.intent,
+          timestamp: requestTimestamp,
           a2aContextId: contextId,
           a2aTaskId: taskId,
           a2aMessageId: messageId,
@@ -118,10 +121,29 @@ export class SageoA2AClientWrapper {
         'outgoing request'
       );
 
+      interactionId = loggedRequest?.interactionId || null;
+
       // Update trace metadata with real interaction ID
       if (interactionId) {
         traceMetadata.interaction_id = interactionId;
         this.injectTraceMetadata(params, traceMetadata);
+      }
+
+      if (loggedRequest?.txHash && interactionId) {
+        await this.sageoClient.reportInteractionTxEvent({
+          interaction_id: interactionId,
+          tx_hash: loggedRequest.txHash,
+          event_type: 'request',
+          is_sender: true,
+          actor_sageo_id: this.callerSageoId,
+          counterparty_sageo_id: calleeSageoId,
+          a2a_context_id: contextId || undefined,
+          a2a_task_id: taskId || undefined,
+          a2a_message_id: messageId || undefined,
+          end_user_id: traceMetadata.end_user?.id || undefined,
+          end_user_session_id: traceMetadata.end_user?.session_id || undefined,
+          timestamp: Number(requestTimestamp),
+        });
       }
     } catch (error) {
 
@@ -134,17 +156,35 @@ export class SageoA2AClientWrapper {
       const response = await this.a2aClient.sendMessage(params);
       if (interactionId) {
         const responseHash = hashPayload(response);
-        await this.runWithTimeout(
-          this.sageoClient.interaction.logResponse({
+        const responseTimestamp = BigInt(Math.floor(Date.now() / 1000));
+        const loggedResponse = await this.runWithTimeout(
+          this.sageoClient.interaction.logResponseWithTx({
             interactionId,
             counterpartySageoId: calleeSageoId,
             isSender: false,
             responseHash,
             statusCode: 200n,
-            timestamp: BigInt(Math.floor(Date.now() / 1000)),
+            timestamp: responseTimestamp,
           }),
           'outgoing response'
         );
+        if (loggedResponse?.txHash) {
+          await this.sageoClient.reportInteractionTxEvent({
+            interaction_id: interactionId,
+            tx_hash: loggedResponse.txHash,
+            event_type: 'response',
+            is_sender: false,
+            actor_sageo_id: this.callerSageoId,
+            counterparty_sageo_id: calleeSageoId,
+            a2a_context_id: contextId || undefined,
+            a2a_task_id: taskId || undefined,
+            a2a_message_id: messageId || undefined,
+            end_user_id: traceMetadata.end_user?.id || undefined,
+            end_user_session_id: traceMetadata.end_user?.session_id || undefined,
+            status_code: 200,
+            timestamp: Number(responseTimestamp),
+          });
+        }
       }
       return response;
     } catch (error) {
@@ -153,17 +193,35 @@ export class SageoA2AClientWrapper {
           error: error instanceof Error ? error.message : String(error),
         });
         try {
-          await this.runWithTimeout(
-            this.sageoClient.interaction.logResponse({
+          const responseTimestamp = BigInt(Math.floor(Date.now() / 1000));
+          const loggedResponse = await this.runWithTimeout(
+            this.sageoClient.interaction.logResponseWithTx({
               interactionId,
               counterpartySageoId: calleeSageoId,
               isSender: false,
               responseHash,
               statusCode: 500n,
-              timestamp: BigInt(Math.floor(Date.now() / 1000)),
+              timestamp: responseTimestamp,
             }),
             'outgoing response (error)'
           );
+          if (loggedResponse?.txHash) {
+            await this.sageoClient.reportInteractionTxEvent({
+              interaction_id: interactionId,
+              tx_hash: loggedResponse.txHash,
+              event_type: 'response',
+              is_sender: false,
+              actor_sageo_id: this.callerSageoId,
+              counterparty_sageo_id: calleeSageoId,
+              a2a_context_id: contextId || undefined,
+              a2a_task_id: taskId || undefined,
+              a2a_message_id: messageId || undefined,
+              end_user_id: traceMetadata.end_user?.id || undefined,
+              end_user_session_id: traceMetadata.end_user?.session_id || undefined,
+              status_code: 500,
+              timestamp: Number(responseTimestamp),
+            });
+          }
         } catch (logError) {
           console.warn('Failed to log response to Sageo:', logError);
         }

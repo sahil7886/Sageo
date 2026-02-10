@@ -7,6 +7,7 @@ export class SageoInteractionSDK {
     readDriver;
     writeDriver;
     logicId;
+    writeQueue = Promise.resolve();
     constructor(provider, wallet, readDriver, writeDriver, logicId) {
         this.provider = provider;
         this.wallet = wallet;
@@ -15,7 +16,7 @@ export class SageoInteractionSDK {
         this.logicId = logicId;
     }
     static async init(config) {
-        const provider = await createProvider();
+        const provider = await createProvider(config.rpcUrl);
         let wallet;
         let writeDriver;
         if (config.privateKey) {
@@ -46,60 +47,88 @@ export class SageoInteractionSDK {
         }
         return this.writeDriver;
     }
+    async enqueueWrite(operation) {
+        const run = this.writeQueue.then(operation, operation);
+        this.writeQueue = run.then(() => undefined, () => undefined);
+        return run;
+    }
     async enlist(sageoId) {
         const driver = this.ensureSigner();
-        try {
-            const ix = await driver.routines.Enlist(sageoId);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
-            await result.wait();
-        }
-        catch (error) {
-            throw new TransactionError(`Failed to enlist: ${sageoId}`, undefined, error);
-        }
+        return this.enqueueWrite(async () => {
+            try {
+                const ix = await driver.routines.Enlist(sageoId);
+                await ix.wait();
+            }
+            catch (error) {
+                throw new TransactionError(`Failed to enlist: ${sageoId}`, undefined, error);
+            }
+        });
     }
     async logRequest(input) {
+        const result = await this.logRequestWithTx(input);
+        return result.interactionId;
+    }
+    async logRequestWithTx(input) {
         const driver = this.ensureSigner();
-        try {
-            const ix = await driver.routines.LogRequest(input.interactionId, input.counterpartySageoId, input.isSender, input.requestHash, input.intent, input.timestamp, input.a2aContextId, input.a2aTaskId, input.a2aMessageId, input.endUserId, input.endUserSessionId);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            const receipt = await result.wait();
-            // Extract interaction_id from receipt (try multiple locations)
-            const interactionId = receipt.outputs?.[0] ??
-                receipt.interaction_id ??
-                receipt.result?.interaction_id ??
-                receipt.result?.result_interaction_id ??
-                receipt.output?.interaction_id ??
-                receipt.output?.result_interaction_id ??
-                receipt.ix_operations?.[0]?.data?.interaction_id ??
-                receipt.ix_operations?.[0]?.data?.result?.interaction_id;
-            if (!interactionId || typeof interactionId !== 'string') {
-                throw new TransactionError('No interaction_id returned from LogRequest', receipt.hash, receipt);
+        return this.enqueueWrite(async () => {
+            try {
+                const ix = await driver.routines.LogRequest(input.interactionId, input.counterpartySageoId, input.isSender, input.requestHash, input.intent, input.timestamp, input.a2aContextId, input.a2aTaskId, input.a2aMessageId, input.endUserId, input.endUserSessionId);
+                const receipt = await ix.wait();
+                let decoded = null;
+                try {
+                    decoded = await ix.result();
+                }
+                catch (decodeError) {
+                    decoded = null;
+                }
+                // Extract interaction_id from receipt (try multiple locations)
+                const interactionId = decoded?.output?.result_interaction_id ??
+                    decoded?.result_interaction_id ??
+                    receipt.outputs?.[0] ??
+                    receipt.interaction_id ??
+                    receipt.result?.interaction_id ??
+                    receipt.result?.result_interaction_id ??
+                    receipt.output?.interaction_id ??
+                    receipt.output?.result_interaction_id ??
+                    receipt.ix_operations?.[0]?.data?.interaction_id ??
+                    receipt.ix_operations?.[0]?.data?.result?.interaction_id;
+                if (!interactionId || typeof interactionId !== 'string') {
+                    throw new TransactionError('No interaction_id returned from LogRequest', receipt.hash, receipt);
+                }
+                return {
+                    interactionId,
+                    txHash: String(receipt.hash || receipt.ix_hash || ''),
+                };
             }
-            return interactionId;
-        }
-        catch (error) {
-            const errorMsg = String(error);
-            if (errorMsg.includes('not enlisted')) {
-                const callerAddr = await getIdentifier(this.wallet);
-                throw new NotEnlistedError(callerAddr, 'caller');
+            catch (error) {
+                const errorMsg = String(error);
+                if (errorMsg.includes('not enlisted')) {
+                    const callerAddr = await getIdentifier(this.wallet);
+                    throw new NotEnlistedError(callerAddr, 'caller');
+                }
+                throw new TransactionError('Failed to log request', undefined, error);
             }
-            throw new TransactionError('Failed to log request', undefined, error);
-        }
+        });
     }
     async logResponse(input) {
+        await this.logResponseWithTx(input);
+    }
+    async logResponseWithTx(input) {
         const driver = this.ensureSigner();
-        try {
-            const ix = await driver.routines.LogResponse(input.interactionId, input.counterpartySageoId, input.isSender, input.responseHash, input.statusCode, input.timestamp);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            await result.wait();
-        }
-        catch (error) {
-            const errorMsg = String(error);
-            if (errorMsg.includes('Interaction not found')) {
-                throw new InteractionNotFoundError(input.interactionId);
+        return this.enqueueWrite(async () => {
+            try {
+                const ix = await driver.routines.LogResponse(input.interactionId, input.counterpartySageoId, input.isSender, input.responseHash, input.statusCode, input.timestamp);
+                const receipt = await ix.wait();
+                return { txHash: String(receipt.hash || receipt.ix_hash || '') };
             }
-            throw new TransactionError('Failed to log response', undefined, error);
-        }
+            catch (error) {
+                const errorMsg = String(error);
+                if (errorMsg.includes('Interaction not found')) {
+                    throw new InteractionNotFoundError(input.interactionId);
+                }
+                throw new TransactionError('Failed to log response', undefined, error);
+            }
+        });
     }
     async getInteraction(agentIdentifier, interactionId) {
         try {

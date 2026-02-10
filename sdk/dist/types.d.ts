@@ -1,8 +1,8 @@
-import type { AgentCard as A2AAgentCard, AgentSkill as A2AAgentSkill, Message, Task, SendMessageRequest } from '@a2a-js/sdk';
+import type { AgentCard as A2AAgentCard, AgentSkill as A2AAgentSkill, Message, Task, MessageSendParams } from '@a2a-js/sdk';
 export type AgentCard = A2AAgentCard;
 export type AgentSkill = A2AAgentSkill;
 export interface A2AClient {
-    sendMessage(request: SendMessageRequest): Promise<Task | Message>;
+    sendMessage(params: MessageSendParams): Promise<Task | Message>;
     getTask(taskId: string): Promise<Task>;
 }
 export interface InteractionRecord {
@@ -49,6 +49,13 @@ export interface LogResponseInput {
     statusCode: bigint;
     timestamp: bigint;
 }
+export interface InteractionLogRequestResult {
+    interactionId: string;
+    txHash: string;
+}
+export interface InteractionLogResponseResult {
+    txHash: string;
+}
 export interface ListInteractionsInput {
     agentIdentifier: string;
     limit: bigint;
@@ -71,6 +78,30 @@ export interface SDKConfig {
     manifest: any;
     rpcUrl?: string;
     privateKey?: string;
+}
+export interface InteractionTxEvent {
+    interaction_id: string;
+    tx_hash: string;
+    event_type: 'request' | 'response';
+    is_sender?: boolean;
+    actor_sageo_id: string;
+    counterparty_sageo_id: string;
+    a2a_context_id?: string;
+    a2a_task_id?: string;
+    a2a_message_id?: string;
+    end_user_id?: string;
+    end_user_session_id?: string;
+    status_code?: number;
+    timestamp: number;
+}
+export interface SageoClientOptions {
+    defaultEndUserId?: string;
+    defaultEndUserSessionId?: string;
+    onInteractionTxEvent?: (event: InteractionTxEvent) => void | Promise<void>;
+}
+export interface EndUserContext {
+    id: string;
+    session_id?: string;
 }
 export declare enum AgentStatus {
     ACTIVE = "ACTIVE",
@@ -99,10 +130,7 @@ export interface SageoTraceMetadata {
     interaction_id: string;
     caller_sageo_id: string;
     callee_sageo_id: string;
-    end_user?: {
-        id: string;
-        session_id?: string;
-    };
+    end_user?: EndUserContext;
     a2a: {
         contextId?: string;
         taskId?: string;

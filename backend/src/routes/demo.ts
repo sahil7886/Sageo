@@ -11,6 +11,8 @@ const __dirname = path.dirname(__filename);
 const uuidv4 = () => crypto.randomUUID();
 
 const router = Router();
+const SAGEO_EXTENSION_URI = 'https://sageo.ai/extensions/trace';
+const CHAIN_INTENT = 'outdoor_investment';
 
 // Store active a2a-flow process
 let a2aFlowProcess: ChildProcess | null = null;
@@ -113,7 +115,7 @@ router.post('/start', async (req: Request, res: Response, next: NextFunction) =>
 // Send message to WeatherBot
 router.post('/send', async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const { message } = req.body;
+    const { message, endUserId, endUserSessionId, interactionId: requestedInteractionId } = req.body;
     
     if (!message) {
       return res.status(400).json({ error: 'Message is required' });
@@ -130,6 +132,48 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
 
     const contextId = uuidv4();
     const messageId = uuidv4();
+    const resolvedInteractionId =
+      typeof requestedInteractionId === 'string' && requestedInteractionId.trim() !== ''
+        ? requestedInteractionId.trim()
+        : `ix_chain_${contextId}`;
+    const resolvedEndUserId =
+      typeof endUserId === 'string' && endUserId.trim() !== ''
+        ? endUserId.trim()
+        : 'demo_user_1';
+    const resolvedEndUserSessionId =
+      typeof endUserSessionId === 'string' && endUserSessionId.trim() !== ''
+        ? endUserSessionId.trim()
+        : '';
+
+    const traceMetadata: {
+      conversation_id: string;
+      interaction_id: string;
+      caller_sageo_id: string;
+      callee_sageo_id: string;
+      end_user?: { id: string; session_id?: string };
+      a2a: { contextId: string; taskId: string; messageId: string; method: string };
+      intent: string;
+      a2a_client_timestamp_ms: number;
+    } = {
+      conversation_id: contextId,
+      interaction_id: resolvedInteractionId,
+      caller_sageo_id: resolvedEndUserId ? `external_${resolvedEndUserId}` : `external_${contextId}`,
+      callee_sageo_id: 'agent_1',
+      a2a: {
+        contextId,
+        taskId: '',
+        messageId,
+        method: 'message/send',
+      },
+      intent: CHAIN_INTENT,
+      a2a_client_timestamp_ms: Date.now(),
+    };
+    if (resolvedEndUserId) {
+      traceMetadata.end_user = {
+        id: resolvedEndUserId,
+        session_id: resolvedEndUserSessionId || undefined,
+      };
+    }
 
     // Send A2A message to WeatherBot
     const a2aResponse = await fetch('http://localhost:4101/a2a/jsonrpc', {
@@ -144,7 +188,11 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
             messageId,
             role: 'user',
             parts: [{ kind: 'text', text: message }],
-            contextId
+            contextId,
+            metadata: {
+              [SAGEO_EXTENSION_URI]: traceMetadata,
+            },
+            extensions: [SAGEO_EXTENSION_URI],
           }
         },
         id: 1
@@ -187,12 +235,13 @@ router.post('/send', async (req: Request, res: Response, next: NextFunction) => 
 
     // Extract interaction IDs from response metadata if available
     const sageoMetadata = result.result?.metadata?.['https://sageo.ai/extensions/trace'];
-    const interactionId = sageoMetadata?.interaction_id || null;
+    const responseInteractionId = sageoMetadata?.interaction_id || null;
 
     res.json({
       success: true,
       message: responseText,
-      interactionId,
+      interactionId: responseInteractionId || resolvedInteractionId,
+      endUserId: resolvedEndUserId || null,
       contextId,
       timestamp: Date.now()
     });

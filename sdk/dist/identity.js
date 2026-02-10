@@ -16,7 +16,7 @@ export class SageoIdentitySDK {
         this.logicId = logicId;
     }
     static async init(config) {
-        const provider = await createProvider();
+        const provider = await createProvider(config.rpcUrl);
         let wallet;
         let writeDriver;
         if (config.privateKey) {
@@ -50,8 +50,7 @@ export class SageoIdentitySDK {
         const driver = this.ensureSigner();
         try {
             const ix = await driver.routines.Enlist();
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 1000 });
-            await result.wait();
+            await ix.wait();
         }
         catch (error) {
             throw new TransactionError('Failed to enlist', undefined, error);
@@ -82,9 +81,17 @@ export class SageoIdentitySDK {
                 }
                 throw createIxError;
             }
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 5000 });
-            const receipt = await result.wait();
-            const sageoId = receipt.outputs?.[0] ??
+            const receipt = await ix.wait();
+            let decoded = null;
+            try {
+                decoded = await ix.result();
+            }
+            catch (decodeError) {
+                decoded = null;
+            }
+            const sageoId = decoded?.output?.sageo_id ??
+                decoded?.sageo_id ??
+                receipt.outputs?.[0] ??
                 receipt.sageo_id ??
                 receipt.result?.sageo_id ??
                 receipt.output?.sageo_id ??
@@ -241,8 +248,7 @@ export class SageoIdentitySDK {
             const inputModes = JSON.stringify(skill.inputModes || []);
             const outputModes = JSON.stringify(skill.outputModes || []);
             const ix = await driver.routines.AddSkill(sageoId, skill.id, skill.name, skill.description, skill.tags || '', examples, inputModes, outputModes);
-            const result = await ix.send({ fuelPrice: 1, fuelLimit: 2000 });
-            await result.wait();
+            await ix.wait();
         }
         catch (error) {
             throw new TransactionError(`Failed to add skill to agent: ${sageoId}`, undefined, error);

@@ -27,6 +27,8 @@ import { fileURLToPath } from 'url';
 import type { Server } from 'http';
 import { SageoClient } from '../sdk/src/sageo-client.ts';
 import { SageoRequestHandler } from '../sdk/src/request-handler.ts';
+import { SAGEO_EXTENSION_URI } from '../sdk/src/config.ts';
+import type { InteractionTxEvent } from '../sdk/src/types.ts';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -38,11 +40,16 @@ const AGENT_MNEMONICS_PATH = path.resolve(
 const RPC_URL = process.env.MOI_RPC_URL || 'https://voyage-rpc.moi.technology';
 const AGENT1_PORT = Number(process.env.AGENT1_PORT || 4101);
 const AGENT2_PORT = Number(process.env.AGENT2_PORT || 4102);
+const AGENT1_SAGEO_ID = process.env.AGENT1_SAGEO_ID || 'agent_1';
+const AGENT2_SAGEO_ID = process.env.AGENT2_SAGEO_ID || 'agent_2';
 const API_BASE_URL = process.env.API_BASE_URL || 'http://localhost:3001';
 const USER_MESSAGE =
   process.env.USER_MESSAGE ||
   'Plan a trip to Tokyo and ask StockTrader for NVDA sentiment.';
-const RUN_DEMO = process.env.RUN_DEMO === 'true';
+const CHAIN_INTENT = 'outdoor_investment';
+const END_USER_ID = process.env.END_USER_ID || '';
+const END_USER_SESSION_ID = process.env.END_USER_SESSION_ID || '';
+const RUN_DEMO = process.env.RUN_DEMO === 'true' || process.argv.includes('--demo');
 
 type StoredAgent = {
   name: string;
@@ -58,7 +65,7 @@ function loadAgentById(agentId: string): StoredAgent {
 
   const data = JSON.parse(fs.readFileSync(AGENT_MNEMONICS_PATH, 'utf-8'));
   const agents = Array.isArray(data?.agents) ? (data.agents as StoredAgent[]) : [];
-  const agent = agents.find((entry) => entry.sageo_id === agentId);
+  const agent = [...agents].reverse().find((entry) => entry.sageo_id === agentId);
   if (!agent) {
     throw new Error(`Agent ${agentId} not found in agent_mnemonics.json`);
   }
@@ -132,6 +139,36 @@ function stripStockTraderPrefix(text: string): string {
   return text.replace(/^StockTrader analysis for\s+\"[^\"]*\"\s*:\s*/i, '').trim();
 }
 
+async function reportTxEvent(event: InteractionTxEvent): Promise<void> {
+  try {
+    await fetch(`${API_BASE_URL}/interactions/tx-events`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(event),
+    });
+  } catch (error) {
+    console.warn('Failed to report tx event to backend:', error);
+  }
+}
+
+async function ensureInteractionEnrollment(
+  sageoClient: SageoClient,
+  sageoId: string
+): Promise<void> {
+  try {
+    const walletIdentifier = await sageoClient.interaction.getWalletIdentifier();
+    const stats = await sageoClient.interaction.getAgentStats(walletIdentifier);
+    if (stats.found) {
+      return;
+    }
+    console.log(`🧩 Enlisting ${sageoId} on interaction contract...`);
+    await sageoClient.interaction.enlist(sageoId);
+    console.log(`✅ Enlisted ${sageoId}`);
+  } catch (error) {
+    console.warn(`⚠️ Failed to ensure enlistment for ${sageoId}:`, error);
+  }
+}
+
 async function startAgentServer(
   label: string,
   agentCard: AgentCard,
@@ -185,7 +222,7 @@ class StockTraderExecutor implements AgentExecutor {
     eventBus.finished();
   }
 
-  cancelTask = async (): Promise<void> => {};
+  cancelTask = async (): Promise<void> => { };
 }
 
 class WeatherBotExecutor implements AgentExecutor {
@@ -197,6 +234,13 @@ class WeatherBotExecutor implements AgentExecutor {
 
   async execute(requestContext: RequestContext, eventBus: ExecutionEventBus): Promise<void> {
     const userQuestion = extractFirstText(requestContext.userMessage) || 'No question provided.';
+    const upstreamTrace = requestContext.userMessage.metadata?.[SAGEO_EXTENSION_URI];
+    const forwardedExtensions = Array.isArray(requestContext.userMessage.extensions)
+      ? [...requestContext.userMessage.extensions]
+      : [];
+    if (upstreamTrace && !forwardedExtensions.includes(SAGEO_EXTENSION_URI)) {
+      forwardedExtensions.push(SAGEO_EXTENSION_URI);
+    }
 
     const agent2Params: MessageSendParams = {
       message: {
@@ -210,6 +254,12 @@ class WeatherBotExecutor implements AgentExecutor {
           },
         ],
         contextId: requestContext.contextId,
+        metadata: upstreamTrace
+          ? {
+            [SAGEO_EXTENSION_URI]: upstreamTrace,
+          }
+          : undefined,
+        extensions: forwardedExtensions.length > 0 ? forwardedExtensions : undefined,
       },
     };
 
@@ -237,7 +287,7 @@ class WeatherBotExecutor implements AgentExecutor {
     eventBus.finished();
   }
 
-  cancelTask = async (): Promise<void> => {};
+  cancelTask = async (): Promise<void> => { };
 }
 
 async function main() {
@@ -245,18 +295,32 @@ async function main() {
   console.log('Sageo A2A Multi-Agent Flow');
   console.log('========================================');
 
-  const agent1Data = loadAgentById('agent_1');
-  const agent2Data = loadAgentById('agent_2');
+  const agent1Data = loadAgentById(AGENT1_SAGEO_ID);
+  const agent2Data = loadAgentById(AGENT2_SAGEO_ID);
 
   const sageoClient1 = new SageoClient(
     RPC_URL,
     agent1Data.mnemonic,
-    buildPlaceholderCard(agent1Data.name)
+    buildPlaceholderCard(agent1Data.name),
+    undefined,
+    undefined,
+    {
+      defaultEndUserId: END_USER_ID || undefined,
+      defaultEndUserSessionId: END_USER_SESSION_ID || undefined,
+      onInteractionTxEvent: reportTxEvent,
+    }
   );
   const sageoClient2 = new SageoClient(
     RPC_URL,
     agent2Data.mnemonic,
-    buildPlaceholderCard(agent2Data.name)
+    buildPlaceholderCard(agent2Data.name),
+    undefined,
+    undefined,
+    {
+      defaultEndUserId: END_USER_ID || undefined,
+      defaultEndUserSessionId: END_USER_SESSION_ID || undefined,
+      onInteractionTxEvent: reportTxEvent,
+    }
   );
 
   console.log('🔧 Initializing Sageo clients...');
@@ -265,6 +329,8 @@ async function main() {
 
   const agent1Profile = await sageoClient1.getMyProfile();
   const agent2Profile = await sageoClient2.getMyProfile();
+  await ensureInteractionEnrollment(sageoClient1, agent1Profile.sageo_id);
+  await ensureInteractionEnrollment(sageoClient2, agent2Profile.sageo_id);
 
   const agent1CardOnChain = agent1Profile.agent_card;
   const agent2CardOnChain = agent2Profile.agent_card;
@@ -315,13 +381,39 @@ async function main() {
       `http://localhost:${AGENT1_PORT}`
     );
     const contextId = uuidv4();
+    const messageId = uuidv4();
+    const interactionId = `ix_chain_${contextId}`;
+    const traceMetadata: Record<string, unknown> = {
+      conversation_id: contextId,
+      interaction_id: interactionId,
+      caller_sageo_id: END_USER_ID ? `external_${END_USER_ID}` : `external_${contextId}`,
+      callee_sageo_id: agent1Profile.sageo_id,
+      a2a: {
+        contextId,
+        taskId: '',
+        messageId,
+        method: 'message/send',
+      },
+      intent: CHAIN_INTENT,
+      a2a_client_timestamp_ms: Date.now(),
+    };
+    if (END_USER_ID) {
+      traceMetadata.end_user = {
+        id: END_USER_ID,
+        session_id: END_USER_SESSION_ID || undefined,
+      };
+    }
     const userParams: MessageSendParams = {
       message: {
         kind: 'message',
-        messageId: uuidv4(),
+        messageId,
         role: 'user',
         parts: [{ kind: 'text', text: USER_MESSAGE }],
         contextId,
+        metadata: {
+          [SAGEO_EXTENSION_URI]: traceMetadata,
+        },
+        extensions: [SAGEO_EXTENSION_URI],
       },
     };
 
@@ -365,11 +457,11 @@ async function main() {
   console.log('\n✅ Servers running and waiting for requests');
   console.log('   WeatherBot: http://localhost:' + AGENT1_PORT);
   console.log('   StockTrader: http://localhost:' + AGENT2_PORT);
-  console.log('   Use RUN_DEMO=true to run automated demo flow');
+  console.log('   Use --demo flag or RUN_DEMO=true to run automated demo flow');
   console.log('   Press Ctrl+C to stop');
-  
+
   // Keep process alive
-  await new Promise(() => {});
+  await new Promise(() => { });
 }
 
 main().catch((error) => {

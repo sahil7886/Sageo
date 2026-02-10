@@ -1,14 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   fetchAgentProfile,
   fetchAgentCard,
   fetchAgentInteractions,
+  fetchInteractionTransactions,
   fetchAgentStats,
   AgentProfile as AgentProfileType,
   AgentCard,
   InteractionRecord,
-  AgentInteractionStats
+  AgentInteractionStats,
+  InteractionTransaction
 } from '../lib/api';
 
 // Helper to format relative time (handles both Unix seconds and counter values)
@@ -29,6 +31,23 @@ const formatRelativeTime = (timestamp: number): string => {
   return new Date(timestamp * 1000).toLocaleDateString();
 };
 
+const buildVoyageInteractionUrl = (txHash: string): string =>
+  `https://voyage.moi.technology/interaction/?${encodeURIComponent(txHash)}`;
+
+const resolveFlowDirection = (
+  tx: InteractionTransaction
+): { from: string; to: string; arrow: string } => {
+  if (typeof tx.is_sender === 'boolean') {
+    if (tx.is_sender) {
+      return { from: tx.actor_sageo_id, to: tx.counterparty_sageo_id, arrow: '→' };
+    }
+    return { from: tx.counterparty_sageo_id, to: tx.actor_sageo_id, arrow: '→' };
+  }
+
+  // Backward compatibility for older rows recorded before is_sender was persisted.
+  return { from: tx.actor_sageo_id, to: tx.counterparty_sageo_id, arrow: '↔' };
+};
+
 const AgentProfile = () => {
   const { id } = useParams<{ id: string }>();
   const [profile, setProfile] = useState<AgentProfileType | null>(null);
@@ -39,6 +58,54 @@ const AgentProfile = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [selectedInteractionId, setSelectedInteractionId] = useState<string | null>(null);
+  const [interactionTxs, setInteractionTxs] = useState<InteractionTransaction[]>([]);
+  const [loadingTxs, setLoadingTxs] = useState(false);
+  const [txError, setTxError] = useState<string | null>(null);
+
+  const groupedInteractions = useMemo(() => {
+    const byInteractionId = new Map<string, InteractionRecord>();
+    for (const row of interactions) {
+      const existing = byInteractionId.get(row.interaction_id);
+      if (!existing) {
+        byInteractionId.set(row.interaction_id, row);
+        continue;
+      }
+
+      const mergedEndUserId = existing.end_user_id || row.end_user_id;
+      const mergedEndUserSessionId = existing.end_user_session_id || row.end_user_session_id;
+      if (row.timestamp >= existing.timestamp) {
+        byInteractionId.set(row.interaction_id, {
+          ...row,
+          end_user_id: mergedEndUserId,
+          end_user_session_id: mergedEndUserSessionId,
+        });
+      } else if (mergedEndUserId !== existing.end_user_id || mergedEndUserSessionId !== existing.end_user_session_id) {
+        byInteractionId.set(row.interaction_id, {
+          ...existing,
+          end_user_id: mergedEndUserId,
+          end_user_session_id: mergedEndUserSessionId,
+        });
+      }
+    }
+    return Array.from(byInteractionId.values());
+  }, [interactions]);
+
+  const statusBasedSuccess = useMemo(() => {
+    const completed = groupedInteractions.filter((row) => row.status_code >= 0);
+    const successful = completed.filter(
+      (row) => row.status_code >= 200 && row.status_code < 300
+    );
+    const rate = completed.length > 0
+      ? Number(((successful.length / completed.length) * 100).toFixed(1))
+      : 0;
+
+    return {
+      completedCount: completed.length,
+      successCount: successful.length,
+      rate,
+    };
+  }, [groupedInteractions]);
 
   useEffect(() => {
     const loadAgent = async () => {
@@ -81,6 +148,21 @@ const AgentProfile = () => {
       console.error('Failed to load more interactions:', err);
     } finally {
       setLoadingMore(false);
+    }
+  };
+
+  const loadInteractionTransactions = async (interactionId: string) => {
+    setSelectedInteractionId(interactionId);
+    setLoadingTxs(true);
+    setTxError(null);
+    try {
+      const transactions = await fetchInteractionTransactions(interactionId);
+      setInteractionTxs(transactions);
+    } catch (err) {
+      setInteractionTxs([]);
+      setTxError(err instanceof Error ? err.message : 'Failed to load transactions');
+    } finally {
+      setLoadingTxs(false);
     }
   };
 
@@ -261,14 +343,12 @@ const AgentProfile = () => {
             <div className="flex flex-col">
               <span className="text-text-secondary text-sm font-medium mb-1">Success Rate</span>
               <div className="flex items-baseline gap-2">
-                {stats ? (
+                {groupedInteractions.length > 0 ? (
                   <>
                     <span className="text-3xl font-bold text-white">
-                      {stats.total_requests_sent > 0
-                        ? ((stats.success_count / stats.total_requests_sent) * 100).toFixed(1)
-                        : '0'}%
+                      {statusBasedSuccess.rate.toFixed(1)}%
                     </span>
-                    {stats.success_count > 0 && (
+                    {statusBasedSuccess.successCount > 0 && (
                       <span className="text-green-500 text-xs font-bold flex items-center">
                         <span className="material-symbols-outlined text-[14px]">check_circle</span>
                       </span>
@@ -284,11 +364,13 @@ const AgentProfile = () => {
           <div className="w-full bg-surface-border rounded-full h-2 overflow-hidden">
             <div
               className="bg-primary h-2 rounded-full"
-              style={{ width: stats && stats.total_requests_sent > 0 ? `${(stats.success_count / stats.total_requests_sent) * 100}%` : '0%' }}
+              style={{ width: groupedInteractions.length > 0 ? `${statusBasedSuccess.rate}%` : '0%' }}
             ></div>
           </div>
           <p className="text-text-secondary text-xs mt-3">
-            {stats ? `${stats.success_count} successful of ${stats.total_requests_sent} requests` : 'No data'}
+            {groupedInteractions.length > 0
+              ? `${statusBasedSuccess.successCount} successful of ${statusBasedSuccess.completedCount} completed interactions`
+              : 'No data'}
           </p>
         </div>
 
@@ -371,24 +453,31 @@ const AgentProfile = () => {
                   <tr>
                     <th className="px-6 py-4 font-semibold text-text-secondary uppercase text-xs tracking-wider">Interaction ID</th>
                     <th className="px-6 py-4 font-semibold text-text-secondary uppercase text-xs tracking-wider">Intent</th>
+                    <th className="px-6 py-4 font-semibold text-text-secondary uppercase text-xs tracking-wider">End User</th>
                     <th className="px-6 py-4 font-semibold text-text-secondary uppercase text-xs tracking-wider">Timestamp</th>
                     <th className="px-6 py-4 font-semibold text-text-secondary uppercase text-xs tracking-wider text-right">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-border">
-                  {interactions.length === 0 ? (
+                  {groupedInteractions.length === 0 ? (
                     <tr>
-                      <td colSpan={4} className="px-6 py-8 text-center text-text-secondary">
+                      <td colSpan={5} className="px-6 py-8 text-center text-text-secondary">
                         No interactions recorded yet
                       </td>
                     </tr>
                   ) : (
-                    interactions.map((row) => {
+                    groupedInteractions.map((row) => {
                       const statusColor = row.status_code >= 200 && row.status_code < 300 ? 'green' : 'red';
                       return (
                         <tr key={row.interaction_id} className="hover:bg-white/5 transition-colors">
-                          <td className="px-6 py-4 font-mono text-primary cursor-pointer hover:underline">{row.interaction_id}</td>
+                          <td
+                            className="px-6 py-4 font-mono text-primary cursor-pointer hover:underline"
+                            onClick={() => loadInteractionTransactions(row.interaction_id)}
+                          >
+                            {row.interaction_id}
+                          </td>
                           <td className="px-6 py-4 text-white">{row.intent}</td>
+                          <td className="px-6 py-4 text-text-secondary font-mono">{row.end_user_id || '-'}</td>
                           <td className="px-6 py-4 text-text-secondary">{formatRelativeTime(row.timestamp)}</td>
                           <td className="px-6 py-4 text-right">
                             <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-${statusColor}-900/30 text-${statusColor}-400 border border-${statusColor}-900/50`}>
@@ -404,7 +493,7 @@ const AgentProfile = () => {
             </div>
             <div className="px-6 py-3 border-t border-surface-border bg-[#15181c] flex items-center justify-between">
               <span className="text-xs text-text-secondary">
-                Showing {interactions.length} of {totalInteractions} interactions
+                Showing {groupedInteractions.length} unique interactions ({interactions.length} records loaded)
               </span>
               {interactions.length < totalInteractions && (
                 <button
@@ -418,6 +507,61 @@ const AgentProfile = () => {
               )}
             </div>
           </div>
+          {selectedInteractionId && (
+            <div className="bg-surface-dark border border-surface-border rounded-xl p-4 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="text-sm font-semibold text-white">On-Chain Tx Mapping</h4>
+                <button
+                  onClick={() => {
+                    setSelectedInteractionId(null);
+                    setInteractionTxs([]);
+                    setTxError(null);
+                  }}
+                  className="text-xs text-text-secondary hover:text-white transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+              <p className="text-xs text-text-secondary mb-3 font-mono">
+                Interaction: {selectedInteractionId}
+              </p>
+              {loadingTxs ? (
+                <p className="text-sm text-text-secondary">Loading transactions...</p>
+              ) : txError ? (
+                <p className="text-sm text-red-400">{txError}</p>
+              ) : interactionTxs.length === 0 ? (
+                <p className="text-sm text-text-secondary">No linked transactions found yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {interactionTxs.map((tx) => {
+                    const direction = resolveFlowDirection(tx);
+                    const explorerUrl = tx.explorer_url || buildVoyageInteractionUrl(tx.tx_hash);
+
+                    return (
+                      <div key={tx.id} className="bg-background-dark border border-surface-border rounded-lg p-3">
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <span className="text-xs uppercase tracking-wider text-text-secondary">
+                            {tx.event_type}
+                          </span>
+                          <a
+                            href={explorerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-primary font-mono hover:underline break-all sm:text-right"
+                          >
+                            {tx.tx_hash}
+                          </a>
+                        </div>
+                        <div className="mt-2 text-xs text-text-secondary font-mono break-all">
+                          {direction.from} {direction.arrow} {direction.to}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Right: Identity Sidebar */}

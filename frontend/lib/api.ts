@@ -237,6 +237,24 @@ export interface InteractionRecord {
     end_user_session_id?: string;
 }
 
+export interface InteractionTransaction {
+    id: number;
+    interaction_id: string;
+    tx_hash: string;
+    event_type: 'request' | 'response';
+    is_sender?: boolean;
+    actor_sageo_id: string;
+    counterparty_sageo_id: string;
+    a2a_context_id?: string;
+    a2a_task_id?: string;
+    a2a_message_id?: string;
+    end_user_id?: string;
+    end_user_session_id?: string;
+    status_code?: number;
+    created_at: number;
+    explorer_url?: string | null;
+}
+
 export interface AgentInteractionStats {
     total_requests_sent: number;
     total_requests_received: number;
@@ -263,6 +281,17 @@ export async function fetchInteraction(
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`Failed to fetch interaction: ${res.status}`);
     return res.json();
+}
+
+export async function fetchInteractionTransactions(
+    interactionId: string
+): Promise<InteractionTransaction[]> {
+    const res = await fetch(`${API_BASE_URL}/interactions/${interactionId}/transactions`);
+    if (!res.ok) {
+        throw new Error(`Failed to fetch interaction transactions: ${res.status}`);
+    }
+    const data = await res.json();
+    return Array.isArray(data?.transactions) ? data.transactions : [];
 }
 
 export async function fetchAgentInteractions(

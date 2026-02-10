@@ -573,14 +573,65 @@ elements:
       - DEST
       - LT $7 $4 $6
       - NOT $7 $7
-      - LDPTR1 $8 0x44
+      - LDPTR1 $8 0x7a
       - JUMPI $8 $7
+      - NOT $7 $1
+      - NOT $7 $7
+      - LDPTR1 $9 0x75
+      - JUMPI $9 $7
       - GETIDX $7 $3 $4
       - GETFLD $7 $7 &0
       - OBTAIN $9 &0
       - EQ $7 $7 $9
       - NOT $7 $7
-      - LDPTR1 $9 0x3f
+      - LDPTR1 $9 0x74
+      - JUMPI $9 $7
+      - GETIDX $7 $3 $4
+      - GETFLD $7 $7 &4
+      - LDPTR1 $9 0x0
+      - LMAKE $9 $9
+      - EQ $7 $7 $9
+      - NOT $7 $7
+      - LDPTR1 $9 0x73
+      - JUMPI $9 $7
+      - PMAKE $7 &1
+      - GETIDX $9 $3 $4
+      - GETFLD $9 $9 &1
+      - OBTAIN $a &1
+      - EQ $9 $9 $a
+      - NOT $9 $9
+      - LDPTR1 $b 0x4e
+      - JUMPI $b $9
+      - GETIDX $9 $3 $4
+      - GETFLD $9 $9 &2
+      - EQ $9 $9 $0
+      - NOT $9 $9
+      - LDPTR1 $b 0x4d
+      - JUMPI $b $9
+      - PMAKE $9 &1
+      - NOT $9 $9
+      - COPY $7 $9
+      - DEST
+      - DEST
+      - GETIDX $9 $3 $4
+      - GETFLD $9 $9 &1
+      - EQ $9 $9 $0
+      - NOT $9 $9
+      - LDPTR1 $b 0x5f
+      - JUMPI $b $9
+      - GETIDX $9 $3 $4
+      - GETFLD $9 $9 &2
+      - EQ $9 $9 $a
+      - NOT $9 $9
+      - LDPTR1 $a 0x5e
+      - JUMPI $a $9
+      - PMAKE $9 &1
+      - NOT $9 $9
+      - COPY $7 $9
+      - DEST
+      - DEST
+      - NOT $7 $7
+      - LDPTR1 $9 0x72
       - JUMPI $9 $7
       - GETIDX $7 $3 $4
       - GETFLD $9 $7 &4
@@ -599,6 +650,9 @@ elements:
       - COPY $1 $7
       - DEST
       - DEST
+      - DEST
+      - DEST
+      - DEST
       - INCR $4
       - LDPTR1 $8 0x24
       - JUMP $8
@@ -606,7 +660,7 @@ elements:
       - STORE $3
       - NOT $0 $1
       - NOT $0 $0
-      - LDPTR1 $1 0x4d
+      - LDPTR1 $1 0x83
       - JUMPI $1 $0
       - LDPTR1 $0 0x4
       - LMAKE $0 $0
@@ -614,7 +668,7 @@ elements:
       - DEST
       - OBTAIN $0 &2
       - NOT $0 $0
-      - LDPTR1 $1 0x58
+      - LDPTR1 $1 0x8e
       - JUMPI $1 $0
       - ORIGIN $0
       - ALOAD $1 $0 &6
@@ -639,7 +693,7 @@ elements:
       - NOT $2 $2
       - AND $0 $0 $2
       - NOT $2 $0
-      - LDPTR1 $3 0x6f
+      - LDPTR1 $3 0xa5
       - JUMPI $3 $2
       - LDPTR1 $2 0x6
       - LMAKE $2 $2
@@ -647,7 +701,7 @@ elements:
       - AND $0 $0 $1
       - DEST
       - NOT $0 $0
-      - LDPTR1 $1 0x79
+      - LDPTR1 $1 0xaf
       - JUMPI $1 $0
       - ORIGIN $0
       - ALOAD $1 $0 &7

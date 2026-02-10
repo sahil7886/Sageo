@@ -23,14 +23,18 @@ npm run start
 - `MOI_RPC_URL` (default: `https://voyage-rpc.moi.technology`)
 - `AGENT1_PORT` (default: `4101`)
 - `AGENT2_PORT` (default: `4102`)
+- `AGENT1_SAGEO_ID` (default: `agent_1`)
+- `AGENT2_SAGEO_ID` (default: `agent_2`)
 - `USER_MESSAGE` (default: "Plan a trip to Paris and ask StockTrader for AAPL sentiment.")
+- `END_USER_ID` (optional: sets `end_user_id` in trace metadata)
+- `END_USER_SESSION_ID` (optional: sets `end_user_session_id` in trace metadata)
 
 ## What You Should See
 
 - WeatherBot server and StockTrader server start locally.
 - End user sends a message to WeatherBot.
 - WeatherBot calls StockTrader via the SageoClient wrapper.
-- Logs should be written to the Sageo Interaction contract for agent_1 and agent_2.
+- Logs should be written to the Sageo Interaction contract for agent_1 and agent_2, sharing one `interaction_id` for the full chain.
 
 You can verify interactions via the API:
 

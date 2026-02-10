@@ -13,6 +13,8 @@ import {
   AgentInteractionStats,
   LogRequestInput,
   LogResponseInput,
+  InteractionLogRequestResult,
+  InteractionLogResponseResult,
   ListInteractionsInput,
   GetInteractionOutput,
   ListInteractionsOutput,
@@ -121,6 +123,13 @@ export class SageoInteractionSDK {
   }
 
   async logRequest(input: LogRequestInput): Promise<string> {
+    const result = await this.logRequestWithTx(input);
+    return result.interactionId;
+  }
+
+  async logRequestWithTx(
+    input: LogRequestInput
+  ): Promise<InteractionLogRequestResult> {
     const driver = this.ensureSigner();
 
     return this.enqueueWrite(async () => {
@@ -168,7 +177,10 @@ export class SageoInteractionSDK {
           );
         }
 
-        return interactionId;
+        return {
+          interactionId,
+          txHash: String((receipt as any).hash || (receipt as any).ix_hash || ''),
+        };
       } catch (error) {
         const errorMsg = String(error);
         if (errorMsg.includes('not enlisted')) {
@@ -181,6 +193,12 @@ export class SageoInteractionSDK {
   }
 
   async logResponse(input: LogResponseInput): Promise<void> {
+    await this.logResponseWithTx(input);
+  }
+
+  async logResponseWithTx(
+    input: LogResponseInput
+  ): Promise<InteractionLogResponseResult> {
     const driver = this.ensureSigner();
 
     return this.enqueueWrite(async () => {
@@ -194,7 +212,8 @@ export class SageoInteractionSDK {
           input.timestamp
         );
 
-        await ix.wait();
+        const receipt = await ix.wait();
+        return { txHash: String((receipt as any).hash || (receipt as any).ix_hash || '') };
       } catch (error) {
         const errorMsg = String(error);
         if (errorMsg.includes('Interaction not found')) {

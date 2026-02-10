@@ -10,7 +10,13 @@ import {
   DEFAULT_IDENTITY_LOGIC_ID,
   DEFAULT_INTERACTION_LOGIC_ID,
 } from './config.js';
-import type { AgentProfile, AgentSkill } from './types.js';
+import type {
+  AgentProfile,
+  AgentSkill,
+  EndUserContext,
+  InteractionTxEvent,
+  SageoClientOptions,
+} from './types.js';
 import { normalizeIdentifier } from './utils.js';
 import type { A2ARequestHandler } from '@a2a-js/sdk/server';
 
@@ -24,13 +30,16 @@ export class SageoClient {
   private interactionSDK!: SageoInteractionSDK;
   private initialized: boolean = false;
   private mySageoId?: string;
+  private options: SageoClientOptions;
+  private defaultEndUserContext?: EndUserContext;
 
   constructor(
     moiRpcUrl: string,
     agentKey: string,
     agentCard?: AgentCard,
     identityLogicId?: string,
-    interactionLogicId?: string
+    interactionLogicId?: string,
+    options: SageoClientOptions = {}
   ) {
     this.moiRpcUrl = moiRpcUrl;
     this.agentKey = agentKey;
@@ -38,6 +47,13 @@ export class SageoClient {
     this.identityLogicId = identityLogicId || DEFAULT_IDENTITY_LOGIC_ID;
     this.interactionLogicId =
       interactionLogicId || DEFAULT_INTERACTION_LOGIC_ID;
+    this.options = options;
+    if (options.defaultEndUserId) {
+      this.defaultEndUserContext = {
+        id: options.defaultEndUserId,
+        session_id: options.defaultEndUserSessionId,
+      };
+    }
   }
 
 
@@ -186,5 +202,24 @@ export class SageoClient {
 
   get mySageoIdValue(): string | undefined {
     return this.mySageoId;
+  }
+
+  getDefaultEndUserContext(): EndUserContext | undefined {
+    return this.defaultEndUserContext;
+  }
+
+  setDefaultEndUserContext(endUser?: EndUserContext): void {
+    this.defaultEndUserContext = endUser && endUser.id ? endUser : undefined;
+  }
+
+  async reportInteractionTxEvent(event: InteractionTxEvent): Promise<void> {
+    if (!this.options.onInteractionTxEvent) {
+      return;
+    }
+    try {
+      await this.options.onInteractionTxEvent(event);
+    } catch (error) {
+      console.warn('Failed to report interaction tx event:', error);
+    }
   }
 }

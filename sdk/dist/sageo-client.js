@@ -14,13 +14,22 @@ export class SageoClient {
     interactionSDK;
     initialized = false;
     mySageoId;
-    constructor(moiRpcUrl, agentKey, agentCard, identityLogicId, interactionLogicId) {
+    options;
+    defaultEndUserContext;
+    constructor(moiRpcUrl, agentKey, agentCard, identityLogicId, interactionLogicId, options = {}) {
         this.moiRpcUrl = moiRpcUrl;
         this.agentKey = agentKey;
         this.agentCard = agentCard;
         this.identityLogicId = identityLogicId || DEFAULT_IDENTITY_LOGIC_ID;
         this.interactionLogicId =
             interactionLogicId || DEFAULT_INTERACTION_LOGIC_ID;
+        this.options = options;
+        if (options.defaultEndUserId) {
+            this.defaultEndUserContext = {
+                id: options.defaultEndUserId,
+                session_id: options.defaultEndUserSessionId,
+            };
+        }
     }
     async initialize() {
         if (this.initialized) {
@@ -43,40 +52,11 @@ export class SageoClient {
             rpcUrl: this.moiRpcUrl,
             privateKey: this.agentKey,
         });
-        try {
-            await this.identitySDK.enlist();
-        }
-        catch (error) {
-            const errorMsg = String(error);
-            if (errorMsg.includes('account not found')) {
-            }
-            else if (!errorMsg.includes('already enlisted')) {
-                console.warn('Failed to enlist in IdentityLogic:', errorMsg);
-            }
-        }
         const myProfile = await this.identitySDK.getMyProfile();
-        if (myProfile) {
-            this.mySageoId = myProfile.sageo_id;
+        if (!myProfile) {
+            throw new Error('Agent not registered. Register the agent in Sageo before initializing the SDK.');
         }
-        else {
-            const profile = await this.identitySDK.registerAgent({
-                agentCard: this.agentCard,
-            });
-            this.mySageoId = profile.sageo_id;
-        }
-        // Enlist in InteractionLogic
-        if (this.mySageoId) {
-            try {
-                await this.interactionSDK.enlist(this.mySageoId);
-            }
-            catch (error) {
-                // Ignore if already enlisted
-                const errorMsg = String(error);
-                if (!errorMsg.includes('already enlisted')) {
-                    console.warn('Failed to enlist in InteractionLogic:', errorMsg);
-                }
-            }
-        }
+        this.mySageoId = myProfile.sageo_id;
         this.initialized = true;
     }
     async getMyProfile() {
@@ -90,11 +70,11 @@ export class SageoClient {
         }
         return result.profile;
     }
-    wrapA2AClient(a2aClient, remoteAgentCard) {
+    wrapA2AClient(a2aClient, remoteAgentCard, remoteSageoId) {
         if (!this.initialized) {
             throw new Error('SageoClient not initialized. Call initialize() first or use await getMyProfile()');
         }
-        return new SageoA2AClientWrapper(a2aClient, this, remoteAgentCard, this.mySageoId);
+        return new SageoA2AClientWrapper(a2aClient, this, remoteAgentCard, this.mySageoId, remoteSageoId);
     }
     wrapRequestHandler(handler) {
         if (!this.initialized) {
@@ -147,6 +127,23 @@ export class SageoClient {
     }
     get mySageoIdValue() {
         return this.mySageoId;
+    }
+    getDefaultEndUserContext() {
+        return this.defaultEndUserContext;
+    }
+    setDefaultEndUserContext(endUser) {
+        this.defaultEndUserContext = endUser && endUser.id ? endUser : undefined;
+    }
+    async reportInteractionTxEvent(event) {
+        if (!this.options.onInteractionTxEvent) {
+            return;
+        }
+        try {
+            await this.options.onInteractionTxEvent(event);
+        }
+        catch (error) {
+            console.warn('Failed to report interaction tx event:', error);
+        }
     }
 }
 //# sourceMappingURL=sageo-client.js.map
